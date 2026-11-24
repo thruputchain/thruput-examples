@@ -64,7 +64,8 @@ export async function readSavedOutcome(
   // The first block that could include the transaction (block 1 at the least).
   const first = expiresAt > EXPIRY_BLOCKS ? expiresAt - EXPIRY_BLOCKS + 1n : 1n;
   const kept = await indexedRange(client, expiresAt);
-  if (kept.oldest > first) return "unknown";
+  // Without a reported oldest block, nothing proves the window is kept.
+  if (kept.oldest === null || kept.oldest > first) return "unknown";
   return "expired";
 }
 
@@ -72,7 +73,7 @@ export async function readSavedOutcome(
 async function indexedRange(
   client: OutcomeReader,
   blockHeight: bigint,
-): Promise<{ oldest: bigint; latest: bigint }> {
+): Promise<{ oldest: bigint | null; latest: bigint }> {
   try {
     const page = await client.getTransactionsByBlock({
       blockHeight,
@@ -85,14 +86,15 @@ async function indexedRange(
     };
   } catch (error) {
     // A block outside the index is reported with the range the node has. A
-    // missing bound is read as the cautious one: not indexed yet, so wait.
+    // missing bound is read as the cautious one: an unknown latest block
+    // means wait, and an unknown oldest block proves nothing is kept.
     const data =
       error instanceof NativeRpcError && error.decoded.classification === "known"
         ? error.decoded.data
         : null;
     if (data?.kind !== "historyUnavailable") throw error;
     return {
-      oldest: data.oldestIndexedBlockHeight ?? 0n,
+      oldest: data.oldestIndexedBlockHeight ?? null,
       latest: data.latestIndexedBlockHeight ?? blockHeight - 1n,
     };
   }
