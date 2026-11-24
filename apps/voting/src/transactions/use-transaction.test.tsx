@@ -298,3 +298,28 @@ it("does not unblock another account when this account's transaction finishes", 
   expect(loadPending(key)).toBeNull();
   expect(result.current.completed).toBeNull();
 });
+
+it("does not offer to forget another account's transaction after an unknown result", async () => {
+  savePending(key, { ...saved, expiresAt: "5000" });
+  const other = toBase58(new Uint8Array(32).fill(8));
+  const otherKey = key.replace(signerAddress, other);
+  const otherSaved = { ...saved, hash: toBase58(new Uint8Array(32).fill(9)) };
+  savePending(otherKey, otherSaved);
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 4500n,
+    latestIndexedBlockHeight: 9000n,
+  });
+  const { result, rerender } = renderHook(() => useTransaction(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.unknownOutcome).toBe(true);
+
+  mocks.wallet = { address: other };
+  rerender();
+  await waitFor(() => expect(result.current.pending).toEqual(otherSaved));
+  expect(result.current.unknownOutcome).toBe(false);
+  act(() => result.current.forgetUnknown());
+  expect(loadPending(otherKey)).toEqual(otherSaved);
+});

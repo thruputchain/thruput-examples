@@ -71,8 +71,9 @@ export function useWalletTransaction<T>(
   // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
   const checking = useRef(false);
-  // The node cannot tell whether the saved transaction committed.
-  const [unknownOutcome, setUnknownOutcome] = useState(false);
+  // The hash of a saved transaction whose outcome the node cannot tell. A
+  // hash, not a flag, so it never applies to another record.
+  const [unknownHash, setUnknownHash] = useState<string | null>(null);
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.hash ?? null,
   });
@@ -89,7 +90,6 @@ export function useWalletTransaction<T>(
   function forget(saved: Pending<T>) {
     if (load<T>(key)?.hash === saved.hash) localStorage.removeItem(key);
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
-    setUnknownOutcome(false);
   }
 
   // The same receipt can arrive from `send` and from the receipt query.
@@ -190,6 +190,8 @@ export function useWalletTransaction<T>(
     try {
       const expiresAt = BigInt(checked.expiresAt);
       const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
+      // The page may show another record by now: report only on this one.
+      if (load<T>(key)?.hash !== checked.hash) return;
       if (outcome === "observe") {
         await receipt.refetch();
       } else if (outcome === "notIndexed") {
@@ -198,7 +200,7 @@ export function useWalletTransaction<T>(
         );
       } else if (outcome === "unknown") {
         // It may have committed: keep the record until the user decides.
-        setUnknownOutcome(true);
+        setUnknownHash(checked.hash);
         setMessage(
           `The node no longer keeps the blocks that could hold ${checked.label}, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and try again.`,
         );
@@ -217,7 +219,7 @@ export function useWalletTransaction<T>(
 
   /** Clear a record whose outcome the node cannot tell, after the user looked it up. */
   function forgetUnknown() {
-    if (!pending || !unknownOutcome) return;
+    if (!pending || pending.hash !== unknownHash) return;
     forget(pending);
     setMessage(null);
   }
@@ -229,7 +231,7 @@ export function useWalletTransaction<T>(
     message,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
-    unknownOutcome,
+    unknownOutcome: pending !== null && pending.hash === unknownHash,
     send,
     checkAgain,
     forgetUnknown,

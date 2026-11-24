@@ -65,8 +65,9 @@ export function useClaim(config: PublicConfig) {
   // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
   const checking = useRef(false);
-  // The node cannot tell whether the saved claim committed.
-  const [unknownOutcome, setUnknownOutcome] = useState(false);
+  // The hash of a saved claim whose outcome the node cannot tell. A hash,
+  // not a flag, so it never applies to another account's claim.
+  const [unknownHash, setUnknownHash] = useState<string | null>(null);
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
@@ -85,7 +86,6 @@ export function useClaim(config: PublicConfig) {
   function forget(savedKey: string, saved: PendingClaim) {
     if (readPending(savedKey)?.hash === saved.hash) localStorage.removeItem(savedKey);
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
-    setUnknownOutcome(false);
   }
 
   function finish(
@@ -171,6 +171,10 @@ export function useClaim(config: PublicConfig) {
     try {
       const expiresAt = BigInt(checked.expiresAt);
       const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
+      // The user may have switched accounts, or the record changed: report
+      // only on the record that was checked, while the page still shows it.
+      if (shownKey.current !== checkedKey || readPending(checkedKey)?.hash !== checked.hash)
+        return;
       if (outcome === "observe") {
         await receipt.refetch();
       } else if (outcome === "notIndexed") {
@@ -179,7 +183,7 @@ export function useClaim(config: PublicConfig) {
         );
       } else if (outcome === "unknown") {
         // It may have committed: keep the record until the user decides.
-        setUnknownOutcome(true);
+        setUnknownHash(checked.hash);
         setMessage(
           `The node no longer keeps the blocks that could hold the claim, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and claim again.`,
         );
@@ -199,7 +203,7 @@ export function useClaim(config: PublicConfig) {
 
   /** Clear a claim whose outcome the node cannot tell, after the user looked it up. */
   function forgetUnknown() {
-    if (!pending || !unknownOutcome) return;
+    if (!pending || pending.hash !== unknownHash) return;
     forget(key, pending);
     setMessage("");
   }
@@ -211,7 +215,7 @@ export function useClaim(config: PublicConfig) {
     message,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
-    unknownOutcome,
+    unknownOutcome: pending !== null && pending.hash === unknownHash,
     send,
     checkAgain,
     forgetUnknown,
