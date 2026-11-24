@@ -23,6 +23,12 @@ export interface TokenQuery {
   creator?: string | undefined;
   limit: number;
   offset: number;
+  /**
+   * List only tokens created at or before this block. A visitor's first page
+   * returns it, and later pages send it back, so new launches do not shift
+   * the pages they browse.
+   */
+  asOfBlock?: number | undefined;
 }
 
 /**
@@ -121,9 +127,21 @@ export class TokenStore {
   }
 
   /** Newest first. `q` matches the name, symbol, or address. */
-  listTokens(query: TokenQuery): { tokens: IndexedToken[]; hasMore: boolean } {
+  listTokens(query: TokenQuery): {
+    tokens: IndexedToken[];
+    hasMore: boolean;
+    asOfBlock: string | null;
+  } {
+    const latest = this.#db
+      .prepare("SELECT MAX(block_height) AS height FROM tokens")
+      .get() as { height: number | null };
+    const asOfBlock = query.asOfBlock ?? latest.height;
     const conditions: string[] = [];
     const values: (string | number)[] = [];
+    if (asOfBlock !== null) {
+      conditions.push("block_height <= ?");
+      values.push(asOfBlock);
+    }
     if (query.q) {
       // Match `%` and `_` in the query literally, not as wildcards.
       const pattern = `%${query.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -140,7 +158,7 @@ export class TokenStore {
     const rows = this.#db
       .prepare(
         `SELECT * FROM tokens ${where}
-         ORDER BY block_height DESC, sequence_number DESC
+         ORDER BY block_height DESC, transaction_hash DESC, sequence_number DESC
          LIMIT ? OFFSET ?`,
       )
       .all(...values, query.limit + 1, query.offset) as Record<string, unknown>[];
@@ -156,6 +174,7 @@ export class TokenStore {
         transactionHash: String(row.transaction_hash),
       })),
       hasMore: rows.length > query.limit,
+      asOfBlock: asOfBlock === null ? null : String(asOfBlock),
     };
   }
 

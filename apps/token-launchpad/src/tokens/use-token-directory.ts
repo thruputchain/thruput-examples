@@ -23,6 +23,9 @@ export function useTokenDirectory({
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
+  // The block the first page stopped at. Later pages list up to it, so new
+  // launches do not shift them; the first page shows new launches as usual.
+  const [asOfBlock, setAsOfBlock] = useState<string | null>(null);
   const creator = scope === "mine" ? toBase58(config.accountAddress) : undefined;
 
   useEffect(() => {
@@ -34,7 +37,14 @@ export function useTokenDirectory({
   }, [search]);
 
   const page = useQuery({
-    queryKey: ["tokens", config.networkId, creator, query, offset],
+    queryKey: [
+      "tokens",
+      config.networkId,
+      creator,
+      query,
+      offset,
+      offset === 0 ? null : asOfBlock,
+    ],
     queryFn: ({ signal }) =>
       read(
         {
@@ -42,6 +52,7 @@ export function useTokenDirectory({
           ...(creator ? { creator } : {}),
           limit: PAGE_SIZE,
           offset,
+          ...(offset > 0 && asOfBlock ? { asOfBlock } : {}),
         },
         signal,
       ),
@@ -50,6 +61,11 @@ export function useTokenDirectory({
     refetchInterval: 5_000,
     retry: false,
   });
+
+  useEffect(() => {
+    if (offset === 0 && page.data && !page.isPlaceholderData)
+      setAsOfBlock(page.data.asOfBlock);
+  }, [offset, page.data, page.isPlaceholderData]);
 
   return {
     search,

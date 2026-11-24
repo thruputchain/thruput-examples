@@ -80,3 +80,15 @@ it("refuses a database that indexes another factory", () => {
   // The same deployment opens it again.
   new TokenStore(path, scope).close();
 });
+
+it("pins a listing to a block, so new tokens do not shift later pages", () => {
+  for (const n of [1, 2, 3]) store.saveToken(token(n), 0);
+  const first = store.listTokens({ limit: 2, offset: 0 });
+  expect(first.asOfBlock).toBe("3");
+  expect(first.tokens.map((t) => t.address)).toEqual(["token-3", "token-2"]);
+  // A token launched after the first page was read.
+  store.saveToken(token(4), 0);
+  const second = store.listTokens({ limit: 2, offset: 2, asOfBlock: 3 });
+  expect(second.tokens.map((t) => t.address)).toEqual(["token-1"]);
+  expect(store.listTokens({ limit: 2, offset: 0 }).tokens[0]!.address).toBe("token-4");
+});

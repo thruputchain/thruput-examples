@@ -57,12 +57,15 @@ export function createApiHandler(
       }
       const limit = Number(url.searchParams.get("limit") ?? 24);
       const offset = Number(url.searchParams.get("offset") ?? 0);
+      const asOf = url.searchParams.get("asOfBlock");
+      const asOfBlock = asOf === null ? undefined : Number(asOf);
       if (
         !Number.isInteger(limit) ||
         limit < 1 ||
         limit > 100 ||
         !Number.isInteger(offset) ||
-        offset < 0
+        offset < 0 ||
+        (asOfBlock !== undefined && (!Number.isSafeInteger(asOfBlock) || asOfBlock < 0))
       ) {
         json(response, 400, { error: "Use a limit of 1–100 and an offset of 0 or more." });
         return true;
@@ -73,6 +76,7 @@ export function createApiHandler(
           creator: url.searchParams.get("creator") || undefined,
           limit,
           offset,
+          asOfBlock,
         }),
         indexedThrough: status.indexedThrough,
       });

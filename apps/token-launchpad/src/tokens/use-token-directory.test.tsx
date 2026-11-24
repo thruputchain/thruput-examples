@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { addressFromBase58, toBase58 } from "@thruputchain/client";
 import type { ReactNode } from "react";
@@ -25,6 +25,7 @@ it("reads the first page, and filters by creator for My Tokens", async () => {
   const read = vi.fn().mockResolvedValue({
     tokens: [],
     hasMore: false,
+    asOfBlock: null,
     indexedThrough: "5",
   });
   const all = renderHook(
@@ -55,4 +56,26 @@ it("reports an unavailable token list", async () => {
     { wrapper },
   );
   await waitFor(() => expect(result.current.error).not.toBeNull());
+});
+
+it("pins later pages to the block the first page stopped at", async () => {
+  const read = vi.fn().mockResolvedValue({
+    tokens: [],
+    hasMore: true,
+    asOfBlock: "42",
+    indexedThrough: "45",
+  });
+  const { result } = renderHook(
+    () => useTokenDirectory({ config, scope: "all", read }),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.page).not.toBeNull());
+  act(() => result.current.setOffset(20));
+  // A launch after the first page cannot shift the second one.
+  await waitFor(() =>
+    expect(read).toHaveBeenLastCalledWith(
+      { limit: 20, offset: 20, asOfBlock: "42" },
+      expect.anything(),
+    ),
+  );
 });
