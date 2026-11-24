@@ -171,7 +171,11 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
     });
   }
 
-  const done = request.finished?.outcome.status === "done" && review;
+  // The tracker is shared with the pool pages: only this pool's request counts.
+  const done =
+    review &&
+    request.finished?.driver === toBase58(review.pool.driver) &&
+    request.finished.outcome.status === "done";
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-[3fr_2fr]">
       <Card>

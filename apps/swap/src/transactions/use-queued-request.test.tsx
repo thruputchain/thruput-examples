@@ -112,6 +112,11 @@ it("queues the request, cranks once, then reports the outcome", async () => {
   await waitFor(() => expect(result.current.finished).not.toBeNull(), {
     timeout: 5_000,
   });
+  // Pages share the tracker, so the result names its pool's driver.
+  expect(result.current.finished).toMatchObject({
+    label: "Swap",
+    driver: toBase58(pool.driver),
+  });
   expect(result.current.queued).toBeNull();
   expect(mocks.send).toHaveBeenCalledTimes(2);
 });
