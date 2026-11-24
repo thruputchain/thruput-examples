@@ -32,6 +32,7 @@ if [ ! -v NO_BUILD ]; then
     thruput build -p clvr-bench
 fi
 
+export THRUPUT_DEVNODE_BINARY="${THRUPUT_DEVNODE_BINARY:-$(thruput toolchain which)}"
 artifact_root="$(realpath target/thruput)"
 export THRUPUT_TESTKIT_ARTIFACT_ROOT="$artifact_root"
 
