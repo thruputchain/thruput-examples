@@ -129,6 +129,11 @@ separate.
 - No export of the saved record, and no repair of damaged browser storage.
 - No indexer. The app pages through polls with the contract's `count` and
   `get_poll` views.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
 
 ## Checks
 

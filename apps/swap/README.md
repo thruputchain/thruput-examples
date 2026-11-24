@@ -129,6 +129,16 @@ proxy (`/thruput-rpc`), and the built app.
 - No allowance cleanup. Each request approves only the missing amount. If a
   request fails, its allowance stays; the next request uses it.
 - No routing across several pools, and no price charts.
+- No guard against switching wallet accounts while a request's outcome is
+  being read. The app can then miss showing that outcome; the pool's balances
+  still reflect it.
+- One page size for the event walk: 200 events, which the devnet RPC allows. An
+  endpoint that allows fewer rejects the walk.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
 
 ## Checks
 

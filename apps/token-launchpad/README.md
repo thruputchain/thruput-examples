@@ -119,6 +119,15 @@ needs, `/healthz` reports it.
 - One launch at a time, in one browser tab.
 - No sorting or full-text search. The API filters by name, symbol, address, or
   creator.
+- One page size for the event walk: 200 events, which the devnet RPC allows. An
+  endpoint that allows fewer rejects the walk.
+- `/healthz` reports a history gap that the SDK raises as `HistoryWalkError`,
+  not every form a node can report it in.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
 
 ## Checks
 

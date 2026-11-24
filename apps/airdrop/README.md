@@ -116,6 +116,13 @@ again. The contract itself prevents a second claim from the same wallet.
 - One claim at a time, in one browser tab. There are no cross-tab locks.
 - No rate limits, IP checks, or proof of unique people. The funded token budget
   bounds the distribution.
+- No guard against switching wallet accounts in the moment between the
+  checkpoint read and the wallet prompt.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
 
 ## Tests
 
