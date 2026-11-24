@@ -6,7 +6,14 @@ import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 
-const apps = ["counter", "token-launchpad", "swap", "voting", "airdrop"];
+const apps = [
+  "counter",
+  "token-launchpad",
+  "swap",
+  "voting",
+  "airdrop",
+  "nft-drop",
+];
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "app-runner-test-"));
@@ -138,7 +145,7 @@ test("a failed app stops subsequent setup steps", async (t) => {
 });
 
 test(
-  "stopping dev stops all five app processes",
+  "stopping dev stops all six app processes",
   { timeout: 10_000 },
   async (t) => {
     const f = await fixture(t);

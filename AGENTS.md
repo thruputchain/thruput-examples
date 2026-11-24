@@ -55,7 +55,8 @@ npm run setup:local --workspace apps/counter
 npm run dev --workspace apps/counter
 ```
 
-Counter runs on 5175, Launchpad on 5173, and Swap on 5174. Read the selected app
+Counter runs on 5175, Launchpad on 5173, Swap on 5174, Voting on 5176,
+Airdrop on 5177, and NFT Drop on 5178. Read the selected app
 README before setup. Freighter is maintained separately.
 
 ## State and generated files

@@ -32,6 +32,8 @@ thruput-erc20-if = { version = "=0.1.77" }
 thruput-erc20-metadata-if = { version = "=0.1.77" }
 thruput-erc20-controls-if = { version = "=0.1.77" }
 thruput-erc20-permit-if = { version = "=0.1.77" }
+thruput-erc165-if = { version = "=0.1.77" }
+thruput-erc721-if = { version = "=0.1.77" }
 thruput-signed-op-if = { version = "=0.1.77" }
 thruput-signed-op = { version = "=0.1.77" }
 

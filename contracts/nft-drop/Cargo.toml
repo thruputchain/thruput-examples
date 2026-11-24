@@ -1,0 +1,37 @@
+[package]
+name = "nft-drop"
+description = "An ERC721 drop whose mints land concurrently: a Balance supply cap, hashed token IDs, and weighted traits"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+entrypoints = []
+dev = ["thruput-sdk/dev", "thruput-erc721-if/dev", "thruput-erc165-if/dev"]
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "nft_drop"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc721-if = { workspace = true }
+thruput-erc165-if = { workspace = true }
+heapless = { workspace = true }
+
+[dev-dependencies]
+nft-drop = { path = ".", features = ["dev"] }

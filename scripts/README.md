@@ -47,9 +47,9 @@ These tools are not required for a first contract or client example.
 
 ## App tooling
 
-Root `npm run setup:local` runs all five app setups in order, then connects
+Root `npm run setup:local` runs all six app setups in order, then connects
 Launchpad and Swap through their environment files. It uses each app's defaults;
-CLI overrides and network checks are optional. Root `npm run dev` starts all five
+CLI overrides and network checks are optional. Root `npm run dev` starts all six
 servers. Ctrl+C stops their process groups. Neither command starts the node.
 
 App entrypoints live with their app:
@@ -112,6 +112,7 @@ npm run test:voting
 npm run test:token-launchpad
 npm run test:swap
 npm run test:airdrop
+npm run test:nft-drop
 npm run test:seed
 npm run test:batching
 ```
@@ -129,6 +130,10 @@ wrong network pin preserves the previous environment.
 `test:swap` checks both setup modes, first-pool creation from the public LP
 artifact, liquidity processing, and swap balances on an isolated nonzero-network
 node. It also checks network-pin rejection without replacing existing output.
+`test:nft-drop` runs setup with a 300-account crowd, creates a drop and mints
+with an injected test wallet, then checks that a rush sells out exactly with no
+conflicts between mints, and that 300 simultaneous mints land in one or two
+blocks. It requires Chromium.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
