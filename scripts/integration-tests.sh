@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Run integration (RPC-targeted) tests.
+# Run integration (RPC-targeted) tests: ERC20's RPC tests, and Counter's live
+# Testkit test.
 #
-# Requires thruput-cli 0.47.0 or newer and a compatible hog-devnode.
+# Requires thruput-cli 0.47.0 or newer and a compatible hog-devnode. Counter's
+# test runs Testkit 0.47.0, so it needs CLI 0.47.0 exactly.
 
 set -euo pipefail
 
@@ -17,3 +19,8 @@ for pkg in "${itest_contracts[@]}"; do
     }
     echo "::endgroup::"
 done
+
+# Counter's live test is a Testkit test, not a `thruput test --integration` one.
+echo "::group::contracts/counter-live/run.sh"
+bash "$(dirname "$0")/../contracts/counter-live/run.sh"
+echo "::endgroup::"
