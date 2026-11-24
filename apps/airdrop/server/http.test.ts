@@ -57,3 +57,56 @@ it("serves public config without a signer and refuses RPC writes", async () => {
   });
   expect(response.status).toBe(403);
 });
+
+it("forwards the reads that Check again makes", async () => {
+  // A stand-in node that answers every request.
+  const forwarded: string[] = [];
+  const node = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      forwarded.push((JSON.parse(body) as { method: string }).method);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }));
+    });
+  });
+  await new Promise<void>((resolve) => node.listen(0, "127.0.0.1", resolve));
+  const nodeSocket = node.address();
+  if (!nodeSocket || typeof nodeSocket === "string") throw new Error("Missing address");
+  try {
+    const handler = createApiHandler(
+      loadConfig({
+        THRUPUT_RPC_URL: `http://127.0.0.1:${nodeSocket.port}`,
+        THRUPUT_NETWORK_ID: address(1),
+        AIRDROP_ADDRESS: address(2),
+        AIRDROP_ANCHOR_HASH: address(4),
+        AIRDROP_TOKENS: JSON.stringify(tokens),
+      }),
+    );
+    server = createServer((req, res) => {
+      void handler(req, res);
+    });
+    await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+    const socket = server.address();
+    if (!socket || typeof socket === "string") throw new Error("Missing address");
+    // See `readSavedOutcome` in src/saved-outcome.ts.
+    const methods = [
+      "getChainTip",
+      "getTransactionsByBlock",
+      "getTransactionStatus",
+      "getTransactionReceipt",
+    ];
+    for (const method of methods) {
+      const response = await fetch(`http://127.0.0.1:${socket.port}/thruput-rpc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: {} }),
+      });
+      expect(response.status, method).toBe(200);
+    }
+    expect(forwarded).toEqual(methods);
+  } finally {
+    node.close();
+    node.closeAllConnections();
+  }
+});
