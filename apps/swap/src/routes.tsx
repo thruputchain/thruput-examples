@@ -4,6 +4,7 @@ import type { AppConfig } from "@/config";
 import { CreatePoolPage } from "@/pools/create-pool-page";
 import { PoolListPage } from "@/pools/pool-list-page";
 import { PoolPage } from "@/pools/pool-page";
+import { QueuedRequestProvider } from "@/transactions/queued-request-provider";
 
 export function AppRoutes({ config }: { config: AppConfig }) {
   const wallet = useWallet();
@@ -11,25 +12,27 @@ export function AppRoutes({ config }: { config: AppConfig }) {
   // Each account has its own saved requests, so remount on account changes.
   const account = wallet.address ?? "read-only";
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/pools" replace />} />
-      <Route path="/pools" element={<PoolListPage config={config} />} />
-      <Route
-        path="/pools/new"
-        element={
-          connected ? (
-            <CreatePoolPage key={account} config={config} />
-          ) : (
-            <ConnectPrompt />
-          )
-        }
-      />
-      <Route
-        path="/pools/:token0/:token1"
-        element={<PoolPage key={account} config={config} />}
-      />
-      <Route path="*" element={<Navigate to="/pools" replace />} />
-    </Routes>
+    <QueuedRequestProvider key={account} config={config}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/pools" replace />} />
+        <Route path="/pools" element={<PoolListPage config={config} />} />
+        <Route
+          path="/pools/new"
+          element={
+            connected ? (
+              <CreatePoolPage key={account} config={config} />
+            ) : (
+              <ConnectPrompt />
+            )
+          }
+        />
+        <Route
+          path="/pools/:token0/:token1"
+          element={<PoolPage key={account} config={config} />}
+        />
+        <Route path="*" element={<Navigate to="/pools" replace />} />
+      </Routes>
+    </QueuedRequestProvider>
   );
 }
 
