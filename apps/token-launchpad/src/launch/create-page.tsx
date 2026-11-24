@@ -160,14 +160,9 @@ export function CreatePage({
                   kind="transaction"
                   value={tx.pending.hash}
                 />
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => void tx.checkAgain()}>
-                    Check again
-                  </Button>
-                  <Button variant="outline" onClick={() => void tx.retry()}>
-                    Retry saved transaction
-                  </Button>
-                </div>
+                <Button variant="outline" onClick={() => void tx.checkAgain()}>
+                  Check again
+                </Button>
               </CardContent>
             </>
           ) : review ? (

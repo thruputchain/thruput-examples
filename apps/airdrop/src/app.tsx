@@ -227,12 +227,6 @@ export function App({ config }: { config: PublicConfig }) {
                 >
                   Check again
                 </button>
-                <button
-                  className="secondary"
-                  onClick={() => void claim.retry()}
-                >
-                  Retry saved transaction
-                </button>
               </div>
             )}
           </section>

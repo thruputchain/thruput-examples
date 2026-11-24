@@ -104,12 +104,24 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
         throw new Error(
           `Add more of each token: the pool locks ${MINIMUM_LIQUIDITY} LP base units forever.`,
         );
-      const [balance0, balance1] = await Promise.all([
+      const [balance0, balance1, nativeBalance] = await Promise.all([
         readBalance(reader, address0),
         readBalance(reader, address1),
+        readBalance(reader, config.nativeTokenAddress),
       ]);
       if (balance0 < amounts[0] || balance1 < amounts[1])
         throw new Error("This wallet does not hold enough of both tokens.");
+      // Creating the pool also funds its three contracts in native tokens. If
+      // one side is the native token, the deposit comes out of the same balance.
+      const native = toBase58(config.nativeTokenAddress);
+      const nativeNeeded =
+        funding * 3n +
+        (toBase58(address0) === native ? amounts[0] : 0n) +
+        (toBase58(address1) === native ? amounts[1] : 0n);
+      if (nativeBalance < nativeNeeded)
+        throw new Error(
+          `This wallet needs ${nativeNeeded - nativeBalance} more native-token units: the factory funds the pool's three contracts too.`,
+        );
       setReview({ token0, token1, amounts, pool, funding });
     } catch (reason) {
       setError(userErrorMessage(reason, "The pool could not be reviewed."));
@@ -121,8 +133,8 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
   async function create() {
     if (!review) return;
     setError(null);
-    try {
-      const { token0, token1, amounts, pool } = review;
+    const { token0, token1, amounts, pool } = review;
+    await request.submit(`Create ${token0.symbol} / ${token1.symbol}`, pool, async () => {
       const totalFunding = review.funding * 3n;
       const [nativeAllowance, allowance0, allowance1, lpCode] = await Promise.all([
         readAllowance(reader, config.nativeTokenAddress, config.factoryAddress),
@@ -139,10 +151,8 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
       const [fundingApproval, approval0, approval1] = approvals.map(([token, spender, amount]) =>
         amount > 0n ? [approve(token, spender, amount)] : [],
       );
-      await request.submit(
-        `Create ${token0.symbol} / ${token1.symbol}`,
-        pool,
-        [
+      return {
+        calls: [
           ...fundingApproval!,
           createPair(config.factoryAddress, token0.address, token1.address, review.funding),
           ...approval0!,
@@ -156,11 +166,9 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
             recipient: account,
           }),
         ],
-        [lpCode],
-      );
-    } catch (reason) {
-      setError(userErrorMessage(reason, "The pool could not be created."));
-    }
+        contractsToDeploy: [lpCode],
+      };
+    });
   }
 
   const done = request.finished?.outcome.status === "done" && review;

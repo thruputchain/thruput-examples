@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClient } from "@thruputchain/react";
 import {
   addressFromBase58,
@@ -6,9 +6,8 @@ import {
   fromHex0x,
   toBase58,
   toHex0x,
-  type ContractCall,
 } from "@thruputchain/client";
-import type { Contract, ContractAddress } from "@thruputchain/protocol";
+import type { ContractAddress } from "@thruputchain/protocol";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   acceptedRequestId,
@@ -18,7 +17,10 @@ import {
   type RequestOutcome,
 } from "@/contracts/swap";
 import { userErrorMessage } from "@/lib/errors";
-import { useWalletTransaction } from "./use-wallet-transaction";
+import {
+  useWalletTransaction,
+  type WalletRequest,
+} from "./use-wallet-transaction";
 
 /** A request the driver accepted, saved until its outcome is known. */
 interface Queued {
@@ -28,7 +30,7 @@ interface Queued {
   requestId: string;
   /** The block that queued the request: its outcome is at or after it. */
   fromBlock: string;
-  /** True once this app sent a crank for it. */
+  /** True once a crank this app sent for it committed. */
   cranked: boolean;
 }
 
@@ -38,6 +40,8 @@ interface Context {
   label: string;
   driver: string;
   handler: string;
+  /** For a crank: the request it was sent for. */
+  requestId?: string;
 }
 
 export interface Finished {
@@ -69,17 +73,31 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
   const client = useClient();
   const queries = useQueryClient();
   const base = `swap:${networkId}:${toBase58(account)}`;
-  const [queued, setQueued] = useState(() => load(`${base}:queued`));
+  const queuedKey = `${base}:queued`;
+  const [queued, setQueued] = useState(() => load(queuedKey));
   const [finished, setFinished] = useState<Finished | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // True after an outcome check fails: the user can then forget the request.
+  const [unreadable, setUnreadable] = useState(false);
+  const checking = useRef(false);
+  // The request this tab asked the wallet to crank. Not saved: if a reload
+  // interrupts signing, nothing was sent, so the app asks once more.
+  const [crankAsked, setCrankAsked] = useState<string | null>(null);
 
   function save(next: Queued | null) {
-    if (next) localStorage.setItem(`${base}:queued`, JSON.stringify(next));
-    else localStorage.removeItem(`${base}:queued`);
+    if (next) localStorage.setItem(queuedKey, JSON.stringify(next));
+    else localStorage.removeItem(queuedKey);
     setQueued(next);
+    setUnreadable(false);
   }
 
   const tx = useWalletTransaction<Context>(`${base}:transaction`, (done) => {
+    if (done.context.kind === "crank") {
+      // Whatever its result, the crank was sent: do not send another on its own.
+      const current = load(queuedKey);
+      if (current && current.requestId === done.context.requestId)
+        save({ ...current, cranked: true });
+    }
     if (!done.succeeded) {
       setError(
         done.context.kind === "request"
@@ -101,7 +119,14 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
     }
   });
 
+  /**
+   * Look for one request's outcome. One check runs at a time, and a check
+   * clears only the request it looked for: a slow check for an earlier request
+   * must not clear the next one.
+   */
   async function check(request: Queued) {
+    if (checking.current) return;
+    checking.current = true;
     try {
       const outcome = await findRequestOutcome(
         client,
@@ -113,26 +138,31 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
         account,
         BigInt(request.fromBlock),
       );
-      if (!outcome) return;
+      setUnreadable(false);
+      if (!outcome || load(queuedKey)?.requestId !== request.requestId) return;
       save(null);
       setFinished({ label: request.label, outcome });
       void queries.invalidateQueries();
     } catch (reason) {
+      // For example, the node no longer keeps history back to `fromBlock`.
+      setUnreadable(true);
       setError(userErrorMessage(reason, "The request's outcome is unavailable."));
+    } finally {
+      checking.current = false;
     }
   }
 
   async function processQueue(request: Queued) {
-    const next = { ...request, cranked: true };
-    save(next);
+    setCrankAsked(request.requestId);
     await tx.send(
       "Process the queue",
-      { calls: [crank(addressFromBase58(request.driver))] },
+      () => ({ calls: [crank(addressFromBase58(request.driver))] }),
       {
         kind: "crank",
         label: request.label,
         driver: request.driver,
         handler: request.handler,
+        requestId: request.requestId,
       },
     );
   }
@@ -145,10 +175,16 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
     return () => clearInterval(timer);
   }, [queued?.requestId]);
 
-  // Send one crank automatically, once the wallet is free.
+  // Ask for one crank automatically, once the wallet is free.
   useEffect(() => {
-    if (queued && !queued.cranked && !tx.blocked) void processQueue(queued);
-  }, [queued, tx.blocked]);
+    if (
+      queued &&
+      !queued.cranked &&
+      crankAsked !== queued.requestId &&
+      !tx.blocked
+    )
+      void processQueue(queued);
+  }, [queued, crankAsked, tx.blocked]);
 
   return {
     tx,
@@ -156,17 +192,22 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
     finished,
     error: error ?? tx.message,
     busy: tx.blocked || queued !== null,
+    unreadable,
+    /** The user can crank by hand once the app has asked for its own crank. */
+    canCrankAgain:
+      queued !== null &&
+      (queued.cranked || crankAsked === queued.requestId),
+    /** `build` returns the calls; see `useWalletTransaction`'s `send`. */
     async submit(
       label: string,
       pool: Pick<PoolAddresses, "driver" | "handler">,
-      calls: readonly ContractCall[],
-      contractsToDeploy?: Contract[],
+      build: () => WalletRequest | Promise<WalletRequest>,
     ) {
       setError(null);
       setFinished(null);
       await tx.send(
         label,
-        { calls, ...(contractsToDeploy ? { contractsToDeploy } : {}) },
+        build,
         {
           kind: "request",
           label,
@@ -180,6 +221,15 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
       setFinished(null);
       setError(null);
       tx.reset();
+    },
+    /**
+     * Stop watching a request whose outcome cannot be read. The request itself
+     * is unchanged: a crank can still process it, and its result shows in the
+     * pool's balances.
+     */
+    forget() {
+      save(null);
+      setError(null);
     },
   };
 }

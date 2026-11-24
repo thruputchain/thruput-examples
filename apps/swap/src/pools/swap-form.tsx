@@ -60,19 +60,23 @@ export function SwapForm({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!quote || problem) return;
-    const allowance = await readAllowance(reader, tokenIn.address, pool.handler);
-    await request.submit(`Swap ${tokenIn.symbol} for ${tokenOut.symbol}`, pool, [
-      ...(allowance < amountIn
-        ? [approve(tokenIn.address, pool.handler, amountIn - allowance)]
-        : []),
-      swapRequest(config.routerAddress, {
-        amountIn,
-        amountOutMin,
-        tokenIn: tokenIn.address,
-        tokenOut: tokenOut.address,
-        recipient: account,
-      }),
-    ]);
+    await request.submit(`Swap ${tokenIn.symbol} for ${tokenOut.symbol}`, pool, async () => {
+      const allowance = await readAllowance(reader, tokenIn.address, pool.handler);
+      return {
+        calls: [
+          ...(allowance < amountIn
+            ? [approve(tokenIn.address, pool.handler, amountIn - allowance)]
+            : []),
+          swapRequest(config.routerAddress, {
+            amountIn,
+            amountOutMin,
+            tokenIn: tokenIn.address,
+            tokenOut: tokenOut.address,
+            recipient: account,
+          }),
+        ],
+      };
+    });
     setAmount("");
   }
 

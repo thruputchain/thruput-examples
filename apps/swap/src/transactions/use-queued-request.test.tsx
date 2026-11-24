@@ -34,6 +34,16 @@ vi.mock("@/contracts/swap", () => ({
 }));
 
 const account = contractAddress(new Uint8Array(32).fill(3));
+const queuedKey = `swap:net:${toBase58(account)}:queued`;
+const saved = (requestId: string) =>
+  JSON.stringify({
+    label: "Swap",
+    driver: toBase58(contractAddress(new Uint8Array(32).fill(1))),
+    handler: toBase58(contractAddress(new Uint8Array(32).fill(2))),
+    requestId: `0x${requestId.repeat(32)}`,
+    fromBlock: "9",
+    cranked: true,
+  });
 const pool = {
   driver: contractAddress(new Uint8Array(32).fill(1)),
   handler: contractAddress(new Uint8Array(32).fill(2)),
@@ -52,8 +62,9 @@ it("queues the request, cranks once, then reports the outcome", async () => {
   const { result } = renderHook(() => useQueuedRequest("net", account), {
     wrapper,
   });
-  await act(() => result.current.submit("Swap", pool, []));
-  expect(mocks.send).toHaveBeenCalledWith("Swap", { calls: [] }, {
+  const build = () => ({ calls: [] });
+  await act(() => result.current.submit("Swap", pool, build));
+  expect(mocks.send).toHaveBeenCalledWith("Swap", build, {
     kind: "request",
     label: "Swap",
     driver: toBase58(pool.driver),
@@ -76,8 +87,25 @@ it("queues the request, cranks once, then reports the outcome", async () => {
   );
   await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
   expect(mocks.send.mock.lastCall![0]).toBe("Process the queue");
-  expect(result.current.queued).toMatchObject({ cranked: true, fromBlock: "9" });
+  expect(mocks.send.mock.lastCall![1]()).toEqual({
+    calls: [{ crank: pool.driver }],
+  });
+  const crankContext = mocks.send.mock.lastCall![2];
+  // Not cranked until the crank commits, but not asked for twice either.
+  expect(result.current.queued).toMatchObject({ cranked: false, fromBlock: "9" });
+  expect(result.current.canCrankAgain).toBe(true);
   expect(mocks.outcome.mock.lastCall![4]).toBe(9n);
+
+  act(() =>
+    mocks.onDone!({
+      succeeded: true,
+      label: "Process the queue",
+      context: crankContext,
+      receipt: { blockHeight: 10n },
+    }),
+  );
+  expect(result.current.queued?.cranked).toBe(true);
+  expect(mocks.send).toHaveBeenCalledTimes(2);
 
   // A crank processed the request.
   mocks.outcome.mockResolvedValue({ status: "done", amounts: [1n] });
@@ -106,4 +134,56 @@ it("does not crank again after a reload", async () => {
   await waitFor(() => expect(mocks.outcome).toHaveBeenCalled());
   expect(result.current.queued?.cranked).toBe(true);
   expect(mocks.send).not.toHaveBeenCalled();
+});
+
+it("asks for the crank again after a reload that interrupted signing", async () => {
+  localStorage.setItem(queuedKey, saved("07").replace('"cranked":true', '"cranked":false'));
+  const { result } = renderHook(() => useQueuedRequest("net", account), {
+    wrapper,
+  });
+  await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
+  expect(mocks.send.mock.lastCall![0]).toBe("Process the queue");
+  // The wallet returned without a crank; the app does not ask again on its own.
+  await new Promise((done) => setTimeout(done, 100));
+  expect(mocks.send).toHaveBeenCalledTimes(1);
+  expect(result.current.canCrankAgain).toBe(true);
+});
+
+it("runs one check at a time, and a late check does not clear the next request", async () => {
+  let resolve!: (outcome: unknown) => void;
+  mocks.outcome.mockReturnValue(new Promise((done) => (resolve = done)));
+  localStorage.setItem(queuedKey, saved("07"));
+  const { result } = renderHook(() => useQueuedRequest("net", account), {
+    wrapper,
+  });
+  await waitFor(() => expect(mocks.outcome).toHaveBeenCalledTimes(1));
+
+  // The interval fires while the first check is still running.
+  await new Promise((done) => setTimeout(done, 3_200));
+  expect(mocks.outcome).toHaveBeenCalledTimes(1);
+
+  // Meanwhile, a later request replaced the first one.
+  localStorage.setItem(queuedKey, saved("08"));
+  await act(async () => resolve({ status: "done", amounts: [1n] }));
+  expect(JSON.parse(localStorage.getItem(queuedKey)!).requestId).toBe(
+    `0x${"08".repeat(32)}`,
+  );
+  expect(result.current.finished).toBeNull();
+}, 10_000);
+
+it("lets the user forget a request whose outcome cannot be read", async () => {
+  mocks.outcome.mockRejectedValue(
+    new Error("History retention no longer covers the requested range"),
+  );
+  localStorage.setItem(queuedKey, saved("07"));
+  const { result } = renderHook(() => useQueuedRequest("net", account), {
+    wrapper,
+  });
+  await waitFor(() => expect(result.current.unreadable).toBe(true));
+  expect(result.current.busy).toBe(true);
+
+  act(() => result.current.forget());
+  expect(result.current.queued).toBeNull();
+  expect(result.current.busy).toBe(false);
+  expect(localStorage.getItem(queuedKey)).toBeNull();
 });

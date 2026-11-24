@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   useClient,
   useWaitForTransactionReceipt,
-  useWallet,
   useWalletClient,
 } from "@thruputchain/react";
 import {
@@ -17,17 +16,14 @@ import { userErrorMessage } from "@/lib/errors";
 
 /**
  * The record saved before the wallet broadcasts a transaction. The Voting app
- * explains the pattern: after a reload, the app observes the same hash; the
- * same signed bytes can be sent again safely; and once the chain passes
- * `expiresAt` without a receipt, the transaction can never commit.
+ * explains the pattern: after a reload, the app observes the same hash, and
+ * once the chain passes `expiresAt` without committing it, the transaction
+ * never will.
  */
 export interface Pending<T> {
   label: string;
   hash: string;
   expiresAt: string;
-  signedTransaction: string;
-  account: string;
-  networkHash: string;
   /** What the page needs to show the result after a reload. */
   context: T;
 }
@@ -45,13 +41,19 @@ function load<T>(key: string): Pending<T> | null {
       string,
       unknown
     > | null;
-    const fields = ["label", "hash", "expiresAt", "signedTransaction", "account", "networkHash"];
+    const fields = ["label", "hash", "expiresAt"];
     if (saved && fields.every((field) => typeof saved[field] === "string"))
       return saved as unknown as Pending<T>;
   } catch {
     // Unreadable storage is treated as no saved transaction.
   }
   return null;
+}
+
+/** The calls of one atomic batch, and any contract code it deploys. */
+export interface WalletRequest {
+  calls: readonly ContractCall[];
+  contractsToDeploy?: Contract[];
 }
 
 /**
@@ -64,12 +66,13 @@ export function useWalletTransaction<T>(
   onDone?: (completed: Completed<T>) => void,
 ) {
   const client = useClient();
-  const wallet = useWallet();
   const walletClient = useWalletClient();
   const [pending, setPending] = useState(() => load<T>(key));
   const [completed, setCompleted] = useState<Completed<T> | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // A ref, not state: a second click before the next render must see it.
+  const sending = useRef(false);
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.hash ?? null,
   });
@@ -104,18 +107,24 @@ export function useWalletTransaction<T>(
     if (pending && receipt.data) finish(pending, receipt.data);
   }, [receipt.data]);
 
+  /**
+   * `build` returns the calls. It runs after the lock is taken, so reads it
+   * makes (allowances, artifacts) cannot let a second click through.
+   */
   async function send(
     label: string,
-    request: { calls: readonly ContractCall[]; contractsToDeploy?: Contract[] },
+    build: () => WalletRequest | Promise<WalletRequest>,
     context: T,
   ) {
-    if (busy || pending) return;
+    if (sending.current || pending) return;
+    sending.current = true;
     setBusy(true);
     setMessage(null);
     setCompleted(null);
     let saved: Pending<T> | null = null;
     try {
       if (!walletClient) throw new Error("Connect a wallet to continue.");
+      const request = await build();
       const result = await walletClient.executeCallsAndWait(
         {
           calls: request.calls,
@@ -133,16 +142,13 @@ export function useWalletTransaction<T>(
         },
         {
           // The SDK waits for this before the wallet broadcasts.
-          onSigned: ({ hash, signedTransaction, account, networkHash }) => {
+          onSigned: ({ hash, signedTransaction }) => {
             const { block_expiry_height } =
               parseSignedTransactionHex(signedTransaction).tx.uniquifier;
             saved = {
               label,
               hash,
               expiresAt: String(block_expiry_height),
-              signedTransaction,
-              account: account.address,
-              networkHash,
               context,
             };
             localStorage.setItem(key, JSON.stringify(saved));
@@ -155,52 +161,40 @@ export function useWalletTransaction<T>(
     } catch (error) {
       setMessage(userErrorMessage(error, `${label} failed.`));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
 
-  /** Look the saved hash up. Never sends anything. */
+  /**
+   * Look the saved hash up. Never sends anything.
+   *
+   * Read the tip first. The transaction cannot commit after `expiresAt`, so if
+   * the tip is past it and the node then reports no commitment, it never will.
+   * Read in the other order, a commit between the two reads looks like expiry.
+   * The status reports a recent commit before its receipt is indexed; the
+   * receipt covers an older one.
+   */
   async function checkAgain() {
     if (!pending) return;
     setMessage(null);
     try {
-      const hash = hashFromBase58(pending.hash);
-      if (await client.getTransactionReceipt({ transactionHash: hash })) {
-        await receipt.refetch();
-        return;
-      }
+      const transactionHash = hashFromBase58(pending.hash);
       const tip = await client.getChainTip();
-      if (tip.blockHeight > BigInt(pending.expiresAt)) {
+      const status = await client.getTransactionStatus({ transactionHash });
+      const committed =
+        ("status" in status && status.status === "committed") ||
+        (await client.getTransactionReceipt({ transactionHash })) !== null;
+      if (!committed && tip.blockHeight > BigInt(pending.expiresAt)) {
         forget();
         setMessage(
-          `${pending.label} expired without committing. You can try again.`,
+          `${pending.label} expired without committing (${pending.hash}). You can try again.`,
         );
         return;
       }
       await receipt.refetch();
     } catch (error) {
       setMessage(userErrorMessage(error, "The check failed."));
-    }
-  }
-
-  /** Send the same signed bytes again. They can commit at most once. */
-  async function retry() {
-    if (!pending) return;
-    setMessage(null);
-    try {
-      if (!wallet.provider || wallet.address !== pending.account)
-        throw new Error("Connect the wallet account that signed it.");
-      await wallet.provider.request({
-        method: "submitTransaction",
-        params: {
-          account: pending.account,
-          networkHash: pending.networkHash,
-          signedTransaction: pending.signedTransaction,
-        },
-      });
-      await receipt.refetch();
-    } catch (error) {
-      setMessage(userErrorMessage(error, "The retry failed."));
     }
   }
 
@@ -213,7 +207,6 @@ export function useWalletTransaction<T>(
     blocked: busy || Boolean(pending),
     send,
     checkAgain,
-    retry,
     reset: () => {
       setCompleted(null);
       setMessage(null);
