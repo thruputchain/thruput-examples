@@ -112,9 +112,11 @@ does the proof, in an order that cannot miss a commit:
 3. The transaction's status, which shows a recent commit before its receipt is
    indexed, then the receipt.
 
-If the node no longer keeps the blocks that could hold the transaction, the
-app says the outcome is unknown and shows the hash to look up. The record is
-per account, so another account is not blocked. See
+If the node no longer keeps the blocks that could hold the transaction, it may
+have committed, so the app keeps the record and shows the hash to look up.
+**Forget this transaction** clears it once the user has checked. One check runs
+at a time, and a check clears only the record it checked. The record is per
+account, so another account is not blocked. See
 [When a write times out](../../examples/typescript/README.md#when-a-write-times-out).
 
 Setup credits the contract with 1 native token for storage. Wallets need free

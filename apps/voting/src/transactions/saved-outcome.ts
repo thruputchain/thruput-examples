@@ -22,7 +22,8 @@ export const EXPIRY_BLOCKS = 1_000n;
  * - `notIndexed`: it can no longer commit, but the node has not indexed
  *   receipts through `expiresAt` yet, so a missing receipt proves nothing.
  * - `expired`: it never committed. The user can send again.
- * - `unknown`: the node no longer keeps the blocks that could hold it.
+ * - `unknown`: the node no longer keeps the blocks that could hold it, so
+ *   it may have committed. Keep the record; the user decides.
  */
 export type SavedOutcome = "observe" | "notIndexed" | "expired" | "unknown";
 
@@ -51,7 +52,7 @@ export async function readSavedOutcome(
 ): Promise<SavedOutcome> {
   const tip = await client.getChainTip();
   if (tip.blockHeight <= expiresAt) return "observe";
-  const indexed = await indexedRange(client, expiresAt, tip.blockHeight);
+  const indexed = await indexedRange(client, expiresAt);
   const transactionHash = hashFromBase58(hash);
   const status = await client.getTransactionStatus({ transactionHash });
   if ("status" in status && status.status === "committed") return "observe";
@@ -67,7 +68,6 @@ export async function readSavedOutcome(
 async function indexedRange(
   client: OutcomeReader,
   blockHeight: bigint,
-  tip: bigint,
 ): Promise<{ oldest: bigint; latest: bigint }> {
   try {
     const page = await client.getTransactionsByBlock({
@@ -80,15 +80,16 @@ async function indexedRange(
       latest: page.latestIndexedBlockHeight,
     };
   } catch (error) {
-    // A block outside the index is reported with the range the node has.
+    // A block outside the index is reported with the range the node has. A
+    // missing bound is read as the cautious one: not indexed yet, so wait.
     const data =
       error instanceof NativeRpcError && error.decoded.classification === "known"
         ? error.decoded.data
         : null;
     if (data?.kind !== "historyUnavailable") throw error;
     return {
-      oldest: data.oldestIndexedBlockHeight ?? blockHeight + 1n,
-      latest: data.latestIndexedBlockHeight ?? tip,
+      oldest: data.oldestIndexedBlockHeight ?? 0n,
+      latest: data.latestIndexedBlockHeight ?? blockHeight - 1n,
     };
   }
 }

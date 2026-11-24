@@ -26,6 +26,11 @@ export function TransactionStatus({
             <button type="button" onClick={() => void tx.checkAgain()}>
               Check again
             </button>
+            {tx.unknownOutcome ? (
+              <button type="button" onClick={tx.forgetUnknown}>
+                Forget this transaction
+              </button>
+            ) : null}
           </div>
         </>
       ) : tx.busy ? (

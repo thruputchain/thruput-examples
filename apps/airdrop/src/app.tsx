@@ -227,6 +227,11 @@ export function App({ config }: { config: PublicConfig }) {
                 >
                   Check again
                 </button>
+                {claim.unknownOutcome && (
+                  <button className="secondary" onClick={claim.forgetUnknown}>
+                    Forget this transaction
+                  </button>
+                )}
               </div>
             )}
           </section>

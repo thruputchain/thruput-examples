@@ -35,9 +35,16 @@ export function RequestStatus({
               label="Transaction"
               value={tx.pending.hash}
             />
-            <Button size="sm" variant="outline" onClick={() => void tx.checkAgain()}>
-              Check again
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void tx.checkAgain()}>
+                Check again
+              </Button>
+              {tx.unknownOutcome ? (
+                <Button size="sm" variant="outline" onClick={tx.forgetUnknown}>
+                  Forget this transaction
+                </Button>
+              ) : null}
+            </div>
           </AlertDescription>
         </Alert>
       ) : tx.busy ? (
