@@ -235,3 +235,39 @@ it("does not unblock another account when this account's claim finishes", async 
   expect(localStorage.getItem(key)).toBeNull();
   expect(result.current.message).toBe("");
 });
+
+it("keeps a claim whose outcome the node cannot tell, until the user forgets it", async () => {
+  localStorage.setItem(key, JSON.stringify({ ...record, expiresAt: "5000" }));
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 4500n,
+    latestIndexedBlockHeight: 9000n,
+  });
+  const { result } = renderHook(() => useClaim(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(result.current.unknownOutcome).toBe(true);
+  expect(result.current.message).toContain(record.hash);
+  act(() => result.current.forgetUnknown());
+  expect(localStorage.getItem(key)).toBeNull();
+  expect(result.current.blocked).toBe(false);
+});
+
+it("runs one check at a time, and a slow check does not clear a newer claim", async () => {
+  let tip!: (value: { blockHeight: bigint }) => void;
+  mocks.getChainTip.mockReturnValueOnce(new Promise((done) => (tip = done)));
+  const { result } = renderHook(() => useClaim(config), { wrapper });
+  let first!: Promise<void>;
+  act(() => {
+    first = result.current.checkAgain();
+    void result.current.checkAgain();
+  });
+  expect(mocks.getChainTip).toHaveBeenCalledTimes(1);
+  const newer = JSON.stringify({ hash: toBase58(new Uint8Array(32).fill(9)), expiresAt: "100" });
+  localStorage.setItem(key, newer);
+  tip({ blockHeight: 101n });
+  await act(() => first);
+  expect(localStorage.getItem(key)).toBe(newer);
+});

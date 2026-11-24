@@ -38,8 +38,11 @@ export function useTransaction(config: AppConfig) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [completed, setCompleted] = useState<string | null>(null);
-  // A ref, not state: a second click before the next render must see it.
+  // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
+  const checking = useRef(false);
+  // The node cannot tell whether the saved transaction committed.
+  const [unknownOutcome, setUnknownOutcome] = useState(false);
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
@@ -53,10 +56,14 @@ export function useTransaction(config: AppConfig) {
 
   useEffect(() => setPending(loadPending(key)), [key]);
 
-  /** Clear one record, and the page only if it still shows that record. */
+  /**
+   * Clear one record, and only that record: the user can switch accounts, or
+   * sign a newer transaction, before a receipt or a slow check comes back.
+   */
   function forget(savedKey: string, saved: Pending) {
-    clearPending(savedKey);
+    if (loadPending(savedKey)?.hash === saved.hash) clearPending(savedKey);
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
+    setUnknownOutcome(false);
   }
 
   function finish(
@@ -116,32 +123,46 @@ export function useTransaction(config: AppConfig) {
     }
   }
 
-  /** Look the saved hash up. Never sends anything. */
+  /** Look the saved hash up. Never sends anything. One check runs at a time. */
   async function checkAgain() {
-    if (!pending) return;
+    if (!pending || checking.current) return;
+    checking.current = true;
+    const checked = pending;
+    const checkedKey = key;
     setMessage(null);
     try {
-      const expiresAt = BigInt(pending.expiresAt);
-      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      const expiresAt = BigInt(checked.expiresAt);
+      const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
       if (outcome === "observe") {
         await receipt.refetch();
-        return;
-      }
-      if (outcome === "notIndexed") {
+      } else if (outcome === "notIndexed") {
         setMessage(
-          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${pending.label} committed. Check again shortly.`,
+          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${checked.label} committed. Check again shortly.`,
         );
-        return;
+      } else if (outcome === "unknown") {
+        // It may have committed: keep the record until the user decides.
+        setUnknownOutcome(true);
+        setMessage(
+          `The node no longer keeps the blocks that could hold ${checked.label}, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and send again.`,
+        );
+      } else {
+        forget(checkedKey, checked);
+        setMessage(
+          `${checked.label} expired without committing (${checked.hash}). You can send it again.`,
+        );
       }
-      forget(key, pending);
-      setMessage(
-        outcome === "expired"
-          ? `${pending.label} expired without committing (${pending.hash}). You can send it again.`
-          : `The node no longer keeps the blocks that could hold ${pending.label} (${pending.hash}). Look it up in an explorer before you send it again.`,
-      );
     } catch (error) {
       setMessage(errorMessage(error));
+    } finally {
+      checking.current = false;
     }
+  }
+
+  /** Clear a record whose outcome the node cannot tell, after the user looked it up. */
+  function forgetUnknown() {
+    if (!pending || !unknownOutcome) return;
+    forget(key, pending);
+    setMessage(null);
   }
 
   return {
@@ -151,8 +172,10 @@ export function useTransaction(config: AppConfig) {
     completed,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
+    unknownOutcome,
     send,
     checkAgain,
+    forgetUnknown,
     dismissConfirmation: () => setCompleted(null),
   };
 }

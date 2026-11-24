@@ -239,3 +239,50 @@ it("keeps a transaction past expiry until the node has indexed its blocks", asyn
   expect(result.current.pending).not.toBeNull();
   expect(result.current.message).toMatch(/has not indexed block 100/);
 });
+
+it("runs one check at a time, and a slow check does not clear a newer transaction", async () => {
+  const record = (hash: string) =>
+    JSON.stringify({ label: "Swap", hash, expiresAt: "100", context: {} });
+  localStorage.setItem(key, record(String(signed.hash)));
+  let tip!: (value: { blockHeight: bigint }) => void;
+  mocks.getChainTip.mockReturnValueOnce(new Promise((done) => (tip = done)));
+  const { result } = renderHook(() => useWalletTransaction(key));
+  let first!: Promise<void>;
+  act(() => {
+    first = result.current.checkAgain();
+    void result.current.checkAgain();
+  });
+  expect(mocks.getChainTip).toHaveBeenCalledTimes(1);
+
+  // Meanwhile, the user signed a newer transaction.
+  const newer = record("newer-hash");
+  localStorage.setItem(key, newer);
+  tip({ blockHeight: 101n });
+  await act(() => first);
+  expect(localStorage.getItem(key)).toBe(newer);
+});
+
+it("keeps a transaction whose outcome the node cannot tell, until the user forgets it", async () => {
+  localStorage.setItem(
+    key,
+    JSON.stringify({ label: "Swap", hash: signed.hash, expiresAt: "5000", context: {} }),
+  );
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 4500n,
+    latestIndexedBlockHeight: 9000n,
+  });
+  const { result } = renderHook(() => useWalletTransaction(key));
+  await act(() => result.current.checkAgain());
+  // It may have committed, so the hash survives a reload.
+  expect(result.current.pending).not.toBeNull();
+  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(result.current.unknownOutcome).toBe(true);
+  expect(result.current.message).toContain(String(signed.hash));
+
+  act(() => result.current.forgetUnknown());
+  expect(result.current.pending).toBeNull();
+  expect(localStorage.getItem(key)).toBeNull();
+});

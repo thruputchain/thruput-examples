@@ -160,9 +160,16 @@ export function CreatePage({
                   kind="transaction"
                   value={tx.pending.hash}
                 />
-                <Button variant="outline" onClick={() => void tx.checkAgain()}>
-                  Check again
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => void tx.checkAgain()}>
+                    Check again
+                  </Button>
+                  {tx.unknownOutcome ? (
+                    <Button variant="outline" onClick={tx.forgetUnknown}>
+                      Forget this transaction
+                    </Button>
+                  ) : null}
+                </div>
               </CardContent>
             </>
           ) : review ? (

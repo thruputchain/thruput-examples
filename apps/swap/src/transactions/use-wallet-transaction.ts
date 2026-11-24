@@ -68,8 +68,11 @@ export function useWalletTransaction<T>(
   const [completed, setCompleted] = useState<Completed<T> | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // A ref, not state: a second click before the next render must see it.
+  // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
+  const checking = useRef(false);
+  // The node cannot tell whether the saved transaction committed.
+  const [unknownOutcome, setUnknownOutcome] = useState(false);
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.hash ?? null,
   });
@@ -79,9 +82,14 @@ export function useWalletTransaction<T>(
   });
   done.current.onDone = onDone;
 
-  function forget() {
-    localStorage.removeItem(key);
-    setPending(null);
+  /**
+   * Clear one record, and only that record: a slow check must not clear a
+   * transaction the user signed after it started.
+   */
+  function forget(saved: Pending<T>) {
+    if (load<T>(key)?.hash === saved.hash) localStorage.removeItem(key);
+    setPending((shown) => (shown?.hash === saved.hash ? null : shown));
+    setUnknownOutcome(false);
   }
 
   // The same receipt can arrive from `send` and from the receipt query.
@@ -103,7 +111,7 @@ export function useWalletTransaction<T>(
       return;
     }
     done.current.hash = saved.hash;
-    forget();
+    forget(saved);
     setCompleted(result);
   }
 
@@ -175,30 +183,43 @@ export function useWalletTransaction<T>(
    * `checkAgain` and `readSavedOutcome` explain the order of the reads.
    */
   async function checkAgain() {
-    if (!pending) return;
+    if (!pending || checking.current) return;
+    checking.current = true;
+    const checked = pending;
     setMessage(null);
     try {
-      const expiresAt = BigInt(pending.expiresAt);
-      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      const expiresAt = BigInt(checked.expiresAt);
+      const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
       if (outcome === "observe") {
         await receipt.refetch();
-        return;
-      }
-      if (outcome === "notIndexed") {
+      } else if (outcome === "notIndexed") {
         setMessage(
-          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${pending.label} committed. Check again shortly.`,
+          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${checked.label} committed. Check again shortly.`,
         );
-        return;
+      } else if (outcome === "unknown") {
+        // It may have committed: keep the record until the user decides.
+        setUnknownOutcome(true);
+        setMessage(
+          `The node no longer keeps the blocks that could hold ${checked.label}, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and try again.`,
+        );
+      } else {
+        forget(checked);
+        setMessage(
+          `${checked.label} expired without committing (${checked.hash}). You can try again.`,
+        );
       }
-      forget();
-      setMessage(
-        outcome === "expired"
-          ? `${pending.label} expired without committing (${pending.hash}). You can try again.`
-          : `The node no longer keeps the blocks that could hold ${pending.label} (${pending.hash}). Look it up in an explorer before you try again.`,
-      );
     } catch (error) {
       setMessage(userErrorMessage(error, "The check failed."));
+    } finally {
+      checking.current = false;
     }
+  }
+
+  /** Clear a record whose outcome the node cannot tell, after the user looked it up. */
+  function forgetUnknown() {
+    if (!pending || !unknownOutcome) return;
+    forget(pending);
+    setMessage(null);
   }
 
   return {
@@ -208,8 +229,10 @@ export function useWalletTransaction<T>(
     message,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
+    unknownOutcome,
     send,
     checkAgain,
+    forgetUnknown,
     reset: () => {
       setCompleted(null);
       setMessage(null);

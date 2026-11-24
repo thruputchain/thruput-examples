@@ -62,8 +62,11 @@ export function useClaim(config: PublicConfig) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  // A ref, not state: a second click before the next render must see it.
+  // Refs, not state: a second click before the next render must see them.
   const sending = useRef(false);
+  const checking = useRef(false);
+  // The node cannot tell whether the saved claim committed.
+  const [unknownOutcome, setUnknownOutcome] = useState(false);
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
@@ -75,10 +78,14 @@ export function useClaim(config: PublicConfig) {
 
   useEffect(() => setPending(readPending(key)), [key]);
 
-  /** Clear one record, and the page only if it still shows that record. */
+  /**
+   * Clear one record, and only that record: the user can switch accounts, or
+   * sign a newer claim, before a receipt or a slow check comes back.
+   */
   function forget(savedKey: string, saved: PendingClaim) {
-    localStorage.removeItem(savedKey);
+    if (readPending(savedKey)?.hash === saved.hash) localStorage.removeItem(savedKey);
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
+    setUnknownOutcome(false);
   }
 
   function finish(
@@ -152,35 +159,49 @@ export function useClaim(config: PublicConfig) {
   }
 
   /**
-   * Look the saved hash up. Never sends anything. The Voting app's
-   * `checkAgain` and `readSavedOutcome` explain the order of the reads.
+   * Look the saved hash up. Never sends anything. One check runs at a time.
+   * The Voting app's `checkAgain` and `readSavedOutcome` explain the reads.
    */
   async function checkAgain() {
-    if (!pending) return;
+    if (!pending || checking.current) return;
+    checking.current = true;
+    const checked = pending;
+    const checkedKey = key;
     setError("");
     try {
-      const expiresAt = BigInt(pending.expiresAt);
-      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      const expiresAt = BigInt(checked.expiresAt);
+      const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
       if (outcome === "observe") {
         await receipt.refetch();
-        return;
-      }
-      if (outcome === "notIndexed") {
+      } else if (outcome === "notIndexed") {
         setMessage(
           `The node has not indexed block ${expiresAt} yet, so it cannot tell whether the claim committed. Check again shortly.`,
         );
-        return;
+      } else if (outcome === "unknown") {
+        // It may have committed: keep the record until the user decides.
+        setUnknownOutcome(true);
+        setMessage(
+          `The node no longer keeps the blocks that could hold the claim, so it cannot tell whether it committed. Look up ${checked.hash} in an explorer. If it did not commit, forget it and claim again.`,
+        );
+      } else {
+        forget(checkedKey, checked);
+        setMessage(
+          `The claim expired without committing (${checked.hash}). You can claim again.`,
+        );
+        void queries.invalidateQueries({ queryKey: ["airdrop"] });
       }
-      forget(key, pending);
-      setMessage(
-        outcome === "expired"
-          ? `The claim expired without committing (${pending.hash}). You can claim again.`
-          : `The node no longer keeps the blocks that could hold the claim (${pending.hash}). Look it up in an explorer before you claim again.`,
-      );
-      void queries.invalidateQueries({ queryKey: ["airdrop"] });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Check failed.");
+    } finally {
+      checking.current = false;
     }
+  }
+
+  /** Clear a claim whose outcome the node cannot tell, after the user looked it up. */
+  function forgetUnknown() {
+    if (!pending || !unknownOutcome) return;
+    forget(key, pending);
+    setMessage("");
   }
 
   return {
@@ -190,7 +211,9 @@ export function useClaim(config: PublicConfig) {
     message,
     waitTimedOut: Boolean(receipt.error),
     blocked: busy || Boolean(pending),
+    unknownOutcome,
     send,
     checkAgain,
+    forgetUnknown,
   };
 }

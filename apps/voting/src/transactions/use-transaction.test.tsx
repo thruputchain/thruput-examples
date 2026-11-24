@@ -228,7 +228,7 @@ it("keeps a transaction past expiry until the node has indexed its blocks", asyn
   );
 });
 
-it("reports an unknown outcome when the node no longer keeps the blocks", async () => {
+it("keeps a transaction whose outcome the node cannot tell, until the user forgets it", async () => {
   savePending(key, { ...saved, expiresAt: "5000" });
   mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
   mocks.getTransactionsByBlock.mockResolvedValue({
@@ -237,11 +237,37 @@ it("reports an unknown outcome when the node no longer keeps the blocks", async 
     oldestIndexedBlockHeight: 4500n,
     latestIndexedBlockHeight: 9000n,
   });
+  const record = { ...saved, expiresAt: "5000" };
   const { result } = renderHook(() => useTransaction(config), { wrapper });
   await act(() => result.current.checkAgain());
-  expect(result.current.pending).toBeNull();
+  // It may have committed, so the hash survives a reload.
+  expect(result.current.pending).toEqual(record);
+  expect(loadPending(key)).toEqual(record);
+  expect(result.current.unknownOutcome).toBe(true);
   expect(result.current.message).toMatch(/no longer keeps the blocks/);
   expect(result.current.message).toContain(saved.hash);
+
+  act(() => result.current.forgetUnknown());
+  expect(result.current.pending).toBeNull();
+  expect(loadPending(key)).toBeNull();
+});
+
+it("runs one check at a time, and a slow check does not clear a newer transaction", async () => {
+  savePending(key, saved);
+  let tip!: (value: { blockHeight: bigint }) => void;
+  mocks.getChainTip.mockReturnValueOnce(new Promise((done) => (tip = done)));
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  let first!: Promise<void>;
+  act(() => {
+    first = result.current.checkAgain();
+    void result.current.checkAgain();
+  });
+  expect(mocks.getChainTip).toHaveBeenCalledTimes(1);
+  const newer = { ...saved, hash: toBase58(new Uint8Array(32).fill(9)) };
+  savePending(key, newer);
+  tip({ blockHeight: 101n });
+  await act(() => first);
+  expect(loadPending(key)).toEqual(newer);
 });
 
 it("does not unblock another account when this account's transaction finishes", async () => {
