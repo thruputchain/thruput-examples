@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircleIcon } from "lucide-react";
 import { addressFromBase58, toBase58 } from "@thruputchain/client";
@@ -65,11 +65,15 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
   const [review, setReview] = useState<Review | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  // The pool this page created, and whether its first deposit went in. Kept
+  // apart from the request's result, which the user can dismiss.
+  const [created, setCreated] = useState<{ review: Review; deposited: boolean } | null>(null);
 
   function edit(set: (value: string) => void) {
     return (value: string) => {
       set(value);
       setReview(null);
+      setCreated(null);
     };
   }
 
@@ -173,13 +177,15 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
 
   // The tracker is shared with the pool pages: only this pool's request
   // counts. Creation commits in the first transaction, so once the deposit has
-  // an outcome the pool exists, even if the deposit failed; the request
-  // status above says which.
+  // an outcome the pool exists, even if the deposit failed.
+  const finished = request.finished;
+  useEffect(() => {
+    if (review && finished?.driver === toBase58(review.pool.driver))
+      setCreated({ review, deposited: finished.outcome.status === "done" });
+  }, [finished, review]);
   // The draft is locked while a review reads it, so the review always matches
   // what the user sees.
   const locked = reviewing || request.busy;
-  const created =
-    review && request.finished?.driver === toBase58(review.pool.driver);
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-[3fr_2fr]">
       <Card>
@@ -221,13 +227,15 @@ export function CreatePoolPage({ config }: { config: AppConfig }) {
         <RequestStatus request={request} />
         {created ? (
           <div className="flex flex-col items-start gap-2">
-            {request.finished?.outcome.status !== "done" ? (
+            {created.deposited ? null : (
               <p className="text-sm text-muted-foreground">
                 The pool exists. Add its first liquidity from the pool page.
               </p>
-            ) : null}
+            )}
             <Button asChild>
-              <Link to={`/pools/${toBase58(review.token0.address)}/${toBase58(review.token1.address)}`}>
+              <Link
+                to={`/pools/${toBase58(created.review.token0.address)}/${toBase58(created.review.token1.address)}`}
+              >
                 Open the pool
               </Link>
             </Button>
