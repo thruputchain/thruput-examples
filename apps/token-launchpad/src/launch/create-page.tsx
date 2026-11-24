@@ -58,6 +58,23 @@ export function CreatePage({
           </AlertDescription>
         </Alert>
       ) : null}
+      {launch.failed ? (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircleIcon />
+          <AlertTitle>The {launch.failed.symbol} launch did not succeed</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            <span>
+              The transaction committed, but execution failed. Funding and
+              creation were rolled back together.
+            </span>
+            <IdentifierDetail
+              label="Transaction"
+              kind="transaction"
+              value={launch.failed.hash}
+            />
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {launch.error ? (
         <Alert variant="destructive" className="mb-6">
           <AlertCircleIcon />
@@ -204,16 +221,6 @@ export function CreatePage({
                     <AlertDescription>
                       This wallet needs {review.fundingShortfall.toString()} more
                       native-token units to fund the token.
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                {launch.failed ? (
-                  <Alert variant="destructive">
-                    <AlertCircleIcon />
-                    <AlertTitle>The launch did not succeed</AlertTitle>
-                    <AlertDescription>
-                      The transaction committed, but execution failed. Funding
-                      and creation were rolled back together.
                     </AlertDescription>
                   </Alert>
                 ) : null}

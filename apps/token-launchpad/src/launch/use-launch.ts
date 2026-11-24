@@ -135,7 +135,14 @@ export function useLaunch(config: AppConfig) {
     review,
     reviewing,
     created,
-    failed: tx.completed?.succeeded === false,
+    // Shown on its own, not in the review: after a reload there is no review.
+    failed:
+      tx.completed?.succeeded === false
+        ? {
+            symbol: tx.completed.context.symbol,
+            hash: toBase58(tx.completed.receipt.transactionHash),
+          }
+        : null,
     error: error ?? tx.message,
     tx,
     edit(key: keyof TokenDraft, value: string) {
