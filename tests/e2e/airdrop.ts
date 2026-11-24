@@ -261,22 +261,9 @@ async function checkBrowser({ client, output }: Deployment) {
           };
         }
         if (request.method === "submitTransaction") {
-          if (failedSubmission === null) {
-            failedSubmission = request.params.signedTransaction;
-            throw new Error("Test connection failure before broadcast");
-          }
-          assert.equal(request.params.signedTransaction, failedSubmission);
-          return {
-            hash: toBase58(
-              (
-                await client.sendTransaction({
-                  signedTransaction: serializeSignedTransaction(
-                    parseSignedTransactionHex(request.params.signedTransaction),
-                  ),
-                })
-              ).transactionHash,
-            ),
-          };
+          assert.equal(failedSubmission, null, "The app must not broadcast again");
+          failedSubmission = request.params.signedTransaction;
+          throw new Error("Test connection failure before broadcast");
         }
         throw new Error("Unexpected wallet request");
       },
@@ -324,9 +311,15 @@ async function checkBrowser({ client, output }: Deployment) {
     await page
       .getByRole("button", { name: "Connect wallet", exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "Retry saved transaction", exact: true })
-      .click();
+    // After the reload the app only observes the saved hash. It neither signs
+    // nor broadcasts again. Check again finds no receipt and keeps waiting.
+    await page.getByRole("button", { name: "Check again", exact: true }).click();
+    // The wallet keeps the signed transaction and can broadcast it itself.
+    await client.sendTransaction({
+      signedTransaction: serializeSignedTransaction(
+        parseSignedTransactionHex(failedSubmission),
+      ),
+    });
     await page
       .getByRole("heading", { name: "Airdrop claimed", exact: true })
       .waitFor({ timeout: 60000 })
@@ -336,6 +329,10 @@ async function checkBrowser({ client, output }: Deployment) {
       });
     assert.equal(signatures, 1);
     await page.reload();
+    // The claimed state comes from the contract, for the connected wallet.
+    await page
+      .getByRole("button", { name: "Connect wallet", exact: true })
+      .click();
     await page
       .getByRole("heading", { name: "Airdrop claimed", exact: true })
       .waitFor({ timeout: 60000 });

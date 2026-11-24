@@ -220,7 +220,6 @@ export async function provisionSwap(options: {
         (options.network === "devnet"
           ? [
               `VITE_EXPLORER_URL=${explorerUrl ?? ""}`,
-              "VITE_TOKEN_DISCOVERY_ENABLED=false",
               "PORT=3000",
               "",
             ].join("\n")

@@ -3,8 +3,14 @@
 A counter with development signing for concurrent button and keyboard updates.
 No wallet connection or approval prompts are needed. Holding a key repeats;
 Escape stops capture.
-For the smaller contract example, start with
-[Counter](../../contracts/counter/README.md).
+
+**What it shows:** many transactions in flight at once. Increments and
+decrements to one `Balance` merge, so they do not conflict, even in the same
+block. For the contract, start with [Counter](../../contracts/counter/README.md).
+For a simple counter app with a browser wallet, run
+`thruput new --template counter-app`.
+
+**Contracts:** [Counter](../../contracts/counter/README.md).
 
 ## Local setup
 
@@ -55,18 +61,36 @@ live in `scripts/run.ts`; `scripts/index.ts` keeps configuration, SDK calls, and
 steps visible. Expected state comes from the configured initial value, independently
 of transaction results.
 
+## Where the Thruput code is
+
+- [`server/transactions.ts`](server/transactions.ts): builds and signs the two
+  allowed calls (`increment` and `decrement`) with the development key.
+- [`src/thruput/client.ts`](src/thruput/client.ts): sends signed transactions,
+  and reads receipts and the signer balance.
+- [`src/thruput/use-counter-value.ts`](src/thruput/use-counter-value.ts): reads
+  the counter with the generated binding.
+- [`src/transactions/engine.ts`](src/transactions/engine.ts): a bounded queue
+  that sends up to 16 transactions at once and observes up to 16 receipts at
+  once, in a Web Worker.
+
 ## Behavior
 
 - All updates use the server's development signer. Configure
   `COUNTER_SIGNING_PRIVATE_KEY` through setup to enable updates.
-- A Web Worker has separate bounded submission and receipt-observation queues.
-  Confirmation does not block the next submission; full queues stop new inputs.
-- Pending and unknown outcomes remain distinct. A timeout is not permission to
-  resubmit a transaction; observation uses its original hash.
-- Session statistics measure this browser's confirmed work, not network throughput.
-  Reload clears statistics but does not cancel transactions already sent.
-- **Top up Signer** requests test native tokens. The server applies a 10-minute in-memory
-  cooldown, and the faucet has its own limits. Use one server replica for this demo.
+- Confirmation does not block the next submission. Full queues stop new inputs.
+- A transaction with no receipt after 20 seconds shows as unknown, and the app
+  keeps checking its hash. It never sends a new transaction in its place. See
+  [When a write times out](../../examples/typescript/README.md#when-a-write-times-out).
+- Session statistics measure this browser's confirmed work, not network
+  throughput. A reload clears them, but does not cancel transactions already sent.
+- **Top up Signer** requests test native tokens. The server applies a 10-minute
+  in-memory cooldown, and the faucet has its own limits. Use one server replica.
+
+## What this example leaves out on purpose
+
+- A browser wallet. The development key lives on the server, which signs only
+  the two counter calls. Never use this pattern with a real key.
+- Saving transactions across a reload. The Voting app shows that pattern.
 
 ## Commands and deployment
 
@@ -96,12 +120,7 @@ a server restart and page reload, not a bundle rebuild. `/api/prepare` restricts
 signatures to counter increments/decrements; `/thruput-rpc` validates submissions
 against that policy. `/healthz` checks server configuration readiness.
 
-## Code and checks
-
-- `src/app.tsx`: UI; `src/transactions/`: scheduler, worker, and React lifecycle.
-- `src/thruput/client.ts`: SDK calls; `src/contracts/generated/`: generated binding.
-- `server/`: private signing, transaction policy, and HTTP endpoints.
-- `scripts/`: build, generation, and provisioning.
+## Checks
 
 Root `npm run test:counter` checks an isolated node and real browser input after
 the artifact and app are built. See

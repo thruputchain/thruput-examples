@@ -4,6 +4,13 @@ Create multi-question polls, vote with a wallet, and read public live results.
 This teaching app uses the [Voting contract](../../contracts/voting/README.md)
 on a local node or devnet.
 
+**What it shows:** a browser wallet signs each transaction; the app reads
+contract views in batches; and a saved transaction survives a reload. It is the
+smallest wallet app here, and the other wallet apps copy its transaction
+pattern.
+
+**Contracts:** [Voting](../../contracts/voting/README.md).
+
 ## Local setup
 
 Complete [repository setup](../../README.md#setup) and run `npm ci` from the root.
@@ -70,41 +77,63 @@ count distinct wallets across the poll.
 Polls load in pages of 12, newest first. Status and **My polls** filters apply
 to the current page. Use **Older** to check earlier polls.
 
-## Code map
+## Where the Thruput code is
 
-- `src/contracts/polls.ts`: generated method calls, small snapshot-read batches,
-  and input validation. Each question's counts use one snapshot.
-- `src/pages/`: public discovery, voting, results, and draft management.
-- `src/components/poll-editor.tsx`: explicit question and option editing.
-- `src/transactions/`: one saved signed transaction and its receipt observation.
-- `scripts/index.ts`: configuration and named setup steps with visible SDK calls.
-- `scripts/run.ts`: named personas, private key storage, and transaction records.
-- `scripts/setup.test.ts`: focused setup tests.
-- `tests/e2e/voting.ts` (repository root): isolated contract and browser acceptance
-  checks. The generation wrapper stays in `scripts/`.
-- `server/`: public runtime configuration, read-only RPC proxy, and production
-  static-file server with deep-link support. No database or signing key is required.
-- `vite.config.ts`: the same API handler during local development.
+- [`src/contracts/polls.ts`](src/contracts/polls.ts): calls built with the
+  generated binding, and views read in one `readViews` batch.
+- [`src/transactions/use-transaction.ts`](src/transactions/use-transaction.ts):
+  sign, save, send, and observe one wallet transaction.
+- [`src/transactions/pending.ts`](src/transactions/pending.ts): the saved record.
 
-Setup credits the contract with 1 native token for storage. This is a finite shared reserve for a local demo; anyone
-can fund the contract address if it runs low. Wallets need free native tokens for gas
-capacity. Gas has no token fee; storage deposits are separate.
+The rest is ordinary app code: `src/pages/` and `src/components/` hold the UI,
+`server/` serves the public configuration and a read-only RPC proxy, and
+`scripts/` holds setup.
 
-## Transaction recovery
+## The transaction pattern
 
-The app saves signed bytes, hash, account, and network before broadcast. Web
-Locks prevent two tabs from replacing the saved record. Reload and **Check
-transaction** only observe the original hash, even after disconnecting.
+1. Build the invocation with the generated binding, for example
+   `methods.vote.invocation(address, GAS, { id, question, option })`.
+2. Send it with the React SDK's `useExecute`. The wallet signs it.
+3. In `onSigned`, save the hash and its expiry height to `localStorage`. The
+   SDK waits for this before the wallet broadcasts the transaction.
+4. `useWaitForTransactionReceipt` watches that hash, also after a reload.
+5. When the receipt arrives, clear the saved record and refresh the reads.
 
-An uncertain outcome blocks new writes. The app does not resubmit automatically.
-Successful transactions clear their pending record automatically and show a short
-confirmation. **Finish** acknowledges a committed execution failure.
-An unfamiliar receipt execution result remains unresolved and keeps the signed record.
-**Export record** preserves signed evidence. If browser storage fails, submission
-stops; **Retry storage** saves the in-memory record. Then select **Submit original
-transaction** to send those same signed bytes. This action checks for an existing
-receipt and expiry first; it never creates or signs a replacement. A malformed saved record
-blocks signing rather than silently discarding evidence.
+A timeout does not mean the transaction failed, so the app never signs a new
+one on its own. **Check again** looks the hash up. The app clears the record
+when a receipt arrives, or when it can prove the transaction never committed;
+then the user can send again. [`saved-outcome.ts`](src/transactions/saved-outcome.ts)
+does the proof, in an order that cannot miss a commit:
+
+1. The chain tip. Until it passes the expiry height, the transaction can still
+   commit.
+2. How far the node has indexed receipts. A missing receipt proves nothing for
+   a block the node has not indexed yet, so the app waits for it.
+3. The transaction's status, which shows a recent commit before its receipt is
+   indexed, then the receipt.
+
+If the node no longer keeps the blocks that could hold the transaction, it may
+have committed, so the app keeps the record and shows the hash to look up.
+**Forget this transaction** clears it once the user has checked. One check runs
+at a time, and a check clears only the record it checked. The record is per
+account, so another account is not blocked. See
+[When a write times out](../../examples/typescript/README.md#when-a-write-times-out).
+
+Setup credits the contract with 1 native token for storage. Wallets need free
+native tokens for gas capacity. Gas has no token fee; storage deposits are
+separate.
+
+## What this example leaves out on purpose
+
+- One transaction at a time, in one browser tab. There are no cross-tab locks.
+- No export of the saved record, and no repair of damaged browser storage.
+- No indexer. The app pages through polls with the contract's `count` and
+  `get_poll` views.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
 
 ## Checks
 

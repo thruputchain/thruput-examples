@@ -1,49 +1,36 @@
-import {
-  parseSignTransactionResult,
-  parseWalletAccount,
-  parseWalletNetworkHash,
-} from "@thruputchain/client/provider";
-import type { PendingWalletTransaction } from "@thruputchain/client/wallet";
-
+/**
+ * The record a page saves before the wallet broadcasts a transaction.
+ *
+ * After a reload, the app observes the same hash instead of signing again.
+ * `expiresAt` is the last block that can include the transaction: once the
+ * chain passes it without committing it, it never will.
+ */
 export interface Pending {
-  version: 1;
   label: string;
-  record: PendingWalletTransaction;
+  hash: string;
+  expiresAt: string;
 }
 
-export function loadPending(
-  storage: Pick<Storage, "getItem">,
-  key: string,
-  network: string,
-): Pending | null {
-  const raw = storage.getItem(key);
-  if (raw === null) return null;
-  const data = JSON.parse(raw) as Partial<Pending>;
-  if (data.version !== 1 || typeof data.label !== "string" || !data.record)
-    throw new Error(
-      "The saved transaction record is invalid. Preserve it before repairing browser storage.",
-    );
-  const record = data.record;
-  if (parseWalletNetworkHash(record.networkHash) !== network)
-    throw new Error("The saved transaction belongs to a different network.");
-  return {
-    version: 1,
-    label: data.label,
-    record: {
-      ...parseSignTransactionResult({
-        signedTransaction: record.signedTransaction,
-        hash: record.hash,
-      }),
-      account: parseWalletAccount(record.account),
-      networkHash: record.networkHash,
-    },
-  };
+const fields = ["label", "hash", "expiresAt"] as const;
+
+export function loadPending(key: string): Pending | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) ?? "null") as Record<
+      string,
+      unknown
+    > | null;
+    if (saved && fields.every((field) => typeof saved[field] === "string"))
+      return saved as unknown as Pending;
+  } catch {
+    // Unreadable storage is treated as no saved transaction.
+  }
+  return null;
 }
 
-export function savePending(
-  storage: Pick<Storage, "setItem">,
-  key: string,
-  pending: Pending,
-) {
-  storage.setItem(key, JSON.stringify(pending));
+export function savePending(key: string, pending: Pending) {
+  localStorage.setItem(key, JSON.stringify(pending));
+}
+
+export function clearPending(key: string) {
+  localStorage.removeItem(key);
 }

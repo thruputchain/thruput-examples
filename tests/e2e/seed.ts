@@ -19,9 +19,11 @@ import { networkHash } from "@thruputchain/protocol";
 import { ERC20 } from "@thruputchain/client/contracts";
 import { SwapFactory } from "../../apps/swap/src/contracts/generated/swap-factory.ts";
 import { SwapHandler } from "../../apps/swap/src/contracts/generated/swap-handler.ts";
-import { createThruputRegistrySource } from "../../apps/token-launchpad/server/chain.ts";
-import { RegistryStore } from "../../apps/token-launchpad/server/store.ts";
-import { RegistryIndexer } from "../../apps/token-launchpad/server/indexer.ts";
+import { TokenStore } from "../../apps/token-launchpad/server/store.ts";
+import {
+  createIndexerClient,
+  indexOnce,
+} from "../../apps/token-launchpad/server/indexer.ts";
 
 assert.ok(
   process.env.THRUPUT_DEVNODE_BINARY,
@@ -123,8 +125,7 @@ const fingerprint = async (path: string) => {
   }
 };
 const before = await Promise.all(protectedPaths.map(fingerprint));
-let store: RegistryStore | undefined;
-let indexer: RegistryIndexer | undefined;
+let store: TokenStore | undefined;
 let stage = "isolated node startup";
 function interrupt() {
   interrupted = true;
@@ -193,27 +194,22 @@ try {
   }
   const launch = parseEnv(await readFile(env.LAUNCHPAD_APP_ENV!, "utf8"));
   const swap = parseEnv(await readFile(env.SWAP_APP_ENV!, "utf8"));
-  const scope = {
+  const launchFactory = launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!;
+  const indexClient = await createIndexerClient({
+    rpcUrl: env.THRUPUT_RPC_URL!,
     networkId: launch.VITE_THRUPUT_NETWORK_ID!,
-    factoryAddress: launch.VITE_STANDARD_TOKEN_FACTORY_ADDRESS!,
-    tokenCodeHash: launch.VITE_STANDARD_TOKEN_HASH!,
-  };
-  const source = await createThruputRegistrySource({
-    rpcUrl: new URL(env.THRUPUT_RPC_URL!),
-    scope,
   });
-  async function startRegistry() {
-    store = new RegistryStore(join(work, "registry.sqlite"), scope);
-    indexer = new RegistryIndexer(store, source, {
-      pageSize: 200,
-      syncIntervalMs: 1_000,
+  // Index the Launchpad factory's TokenCreated events, as its server does.
+  async function index() {
+    store ??= new TokenStore(join(work, "tokens.sqlite"), {
+      networkId: launch.VITE_THRUPUT_NETWORK_ID!,
+      factoryAddress: launchFactory,
     });
-    indexer.start();
-    await indexer.sync();
-    assert.equal(store.getStatus().syncState, "idle");
-    assert.equal(store.getStatus().lastError, null);
+    await indexOnce(indexClient, store, launchFactory);
   }
-  await startRegistry();
+  const tokenCount = () =>
+    store!.listTokens({ limit: 100, offset: 0 }).tokens.length;
+  await index();
   const client = await createThruputClient({
     cluster: localnet({
       rpcUrl: env.THRUPUT_RPC_URL!,
@@ -226,7 +222,7 @@ try {
     (await SwapFactory.v0_1.allPairsLength.view({ client, address: factory }))
       .value;
   assert.equal(await count(), 0n);
-  assert.equal(store!.getStatus().tokenCount, 0);
+  assert.equal(tokenCount(), 0);
   stage =
     "reject a router initialized for another factory before any seed writes";
   const otherSetup = join(work, "OTHER-SWAP.env");
@@ -240,7 +236,8 @@ try {
   assert.equal((await client.getChainTip()).blockHeight, tipBeforeMismatch);
   await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
   assert.equal(await count(), 0n);
-  assert.equal(store!.getStatus().tokenCount, 0);
+  await index();
+  assert.equal(tokenCount(), 0);
   stage = "fresh token and pool seed commands";
   // Token seeding must not read Swap configuration or require its contracts.
   const tokensOutput = await run("token-launchpad", "seed-tokens", {
@@ -269,8 +266,7 @@ try {
       1_000_000n * 1_000_000n,
     );
   }
-  // Swap seed creates its own tokens; no saved signer or running registry is needed.
-  await indexer!.stop();
+  // Swap seed creates its own tokens; no saved signer or running indexer is needed.
   const manifest = result(await run("swap", "seed-pools"));
   assert.ok(manifest.pool);
   assert.ok(manifest.tokens.every((token) => !tokens.tokens.includes(token)));
@@ -324,10 +320,11 @@ try {
   assert.ok(second.tokens.every((token) => !manifest.tokens.includes(token)));
   assert.equal(await count(), 2n);
   await assert.rejects(readdir(env.SEED_STATE_DIR!), { code: "ENOENT" });
-  store!.close();
-  await startRegistry();
-  await until(() => store!.getStatus().tokenCount === 6);
-  assert.equal(store!.getStatus().tokenCount, 6);
+  await until(async () => {
+    await index();
+    return tokenCount() === 6;
+  });
+  assert.equal(tokenCount(), 6);
   console.log(
     `PASS: fresh assets on rerun, no saved signer/journal, recipient balances/LP, reserves and indexing. Evidence: ${work}`,
   );
@@ -340,7 +337,6 @@ try {
   clearTimeout(watchdog);
   process.off("SIGINT", interrupt);
   process.off("SIGTERM", interrupt);
-  await indexer?.stop();
   store?.close();
   await processGroups.stopAll();
   assert.deepEqual(

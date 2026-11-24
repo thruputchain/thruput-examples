@@ -83,12 +83,13 @@ jobs:
           npx --no-install playwright-core install --with-deps chromium
           CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
           echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
-      - name: Qualify the client examples, counter, seeding, and batched transactions
+      - name: Qualify the client examples, counter, seeding, batched transactions, and Launchpad with Swap
         run: |
           npm run test:examples
           npm run test:counter
           npm run test:seed
           npm run test:batching
+          npm run test:launchpad-swap
       # Keep the seed run's working directory for diagnosis. Local dev keys, the
       # seed signer key and the cached devnode bundle are left out.
       - name: Upload seed evidence

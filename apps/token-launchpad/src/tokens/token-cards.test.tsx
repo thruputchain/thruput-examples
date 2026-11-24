@@ -12,7 +12,7 @@ import { CxsWriter } from "@thruputchain/protocol";
 import { toBase58 } from "@thruputchain/client";
 import { testAccount, testClient, testWallet } from "@/test/wallet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { TokenCards } from "./token-cards";
+import { formatTokenAmount, TokenCards } from "./token-cards";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -50,10 +50,9 @@ it("loads all visible balances concurrently and isolates account changes and fai
     name: `Token ${i}`,
     symbol: `T${i}`,
     decimals: 0,
-    initialSupply: 1000n,
-    administrator: testAccount().address,
-    holder: testAccount().address,
-    block: 1n,
+    creator: testAccount().address,
+    initialSupply: "1000",
+    blockHeight: "1",
     transactionHash: toBase58(new Uint8Array(32).fill(0x01)),
   }));
   function Cards() {
@@ -101,4 +100,11 @@ it("loads all visible balances concurrently and isolates account changes and fai
     wallet.unregister();
     queries.clear();
   }
+});
+
+it("shows base units when a token's decimals cannot be formatted", () => {
+  expect(formatTokenAmount(1_500n, 3)).toBe("1.5");
+  expect(formatTokenAmount(1_500n, null)).toBe("1500 base units");
+  // The factory accepts any u32; `formatUnits` takes at most 255.
+  expect(formatTokenAmount(1_500n, 300)).toBe("1500 base units");
 });

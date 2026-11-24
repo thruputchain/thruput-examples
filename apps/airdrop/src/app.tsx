@@ -205,57 +205,32 @@ export function App({ config }: { config: PublicConfig }) {
                 {claim.error}
               </p>
             )}
-            {claim.recoveryMessage && (
-              <p role="status">{claim.recoveryMessage}</p>
+            {claim.message && <p role="status">{claim.message}</p>}
+            {state.data?.claimed && (
+              <div className="result">
+                <h2>Airdrop claimed</h2>
+                <p className="hint">This wallet has received its tokens.</p>
+              </div>
             )}
             {claim.pending && (
               <div className="result">
-                <h2>
-                  {claim.settled
-                    ? claim.receipt.data &&
-                      "result" in claim.receipt.data.execution &&
-                      claim.receipt.data.execution.result === "return"
-                      ? "Airdrop claimed"
-                      : "Claim did not succeed"
-                    : "Checking your claim"}
-                </h2>
+                <h2>Checking your claim</h2>
                 <p className="hash">Transaction: {claim.pending.hash}</p>
                 <p className="hint">
-                  Saved for recovery after reload. We never submit a replacement
-                  automatically.
+                  {claim.waitTimedOut
+                    ? "No receipt yet. The claim can still commit, so do not sign a new one."
+                    : "Saved in this browser, so a reload keeps watching this transaction."}
                 </p>
-                {claim.receipt.error && (
-                  <p role="alert" className="error">
-                    {claim.receipt.error.message}
-                  </p>
-                )}
                 <button
                   className="secondary"
-                  onClick={() =>
-                    claim.settled
-                      ? void claim.acknowledge()
-                      : void claim.receipt.refetch()
-                  }
+                  onClick={() => void claim.checkAgain()}
                 >
-                  {claim.settled ? "Done" : "Check transaction"}
+                  Check again
                 </button>
-                {!claim.settled && (
-                  <>
-                    <button
-                      className="secondary"
-                      disabled={claim.busy}
-                      onClick={() => void claim.recover(true)}
-                    >
-                      Retry saved transaction
-                    </button>
-                    <button
-                      className="secondary"
-                      disabled={claim.busy}
-                      onClick={() => void claim.recover(false)}
-                    >
-                      Check expiry
-                    </button>
-                  </>
+                {claim.unknownOutcome && (
+                  <button className="secondary" onClick={claim.forgetUnknown}>
+                    Forget this transaction
+                  </button>
                 )}
               </div>
             )}

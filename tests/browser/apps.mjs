@@ -60,10 +60,8 @@ Object.assign(process.env, {
   VITE_SWAP_ROUTER_ADDRESS: id(0x04),
   VITE_NATIVE_TOKEN_ADDRESS: id(0x05),
   VITE_NATIVE_BALANCE_ITEM_COST: "1234",
-  VITE_TOKEN_DISCOVERY_ENABLED: "true",
   VITE_STANDARD_TOKEN_FACTORY_ADDRESS: scope.factoryAddress,
   VITE_STANDARD_TOKEN_HASH: scope.tokenCodeHash,
-  TOKEN_DISCOVERY_UPSTREAM_ORIGIN: "http://127.0.0.1:1",
 });
 const server = await createServer({
   mode: "browser-test",
@@ -142,8 +140,6 @@ try {
   const errors = [];
   const searches = [];
   let unavailable = false;
-  let networkReads = 0;
-  let checkingCreation = false;
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/thruput-rpc", async (route) => {
     const request = route.request().postDataJSON();
@@ -152,54 +148,31 @@ try {
         result: await new MockTransport().request(request.method, request.params) } });
       return;
     }
-    if (!checkingCreation && request.method === "simulateInvocation") {
-      await route.fulfill({
-        json: {
-          jsonrpc: "2.0",
-          id: request.id,
-          error: {
-            code: -32000,
-            message: "Directory is outside this UI fixture",
-          },
-        },
-      });
-      return;
-    }
-    assert.equal(
-      request.method,
-      "getNetworkInfo",
-      "No contract reads or writes may follow a network mismatch",
-    );
-    networkReads += 1;
+    assert.equal(request.method, "getNetworkInfo", "The create page reads nothing before review");
     await route.fulfill({
-      json: {
-        jsonrpc: "2.0",
-        id: request.id,
-        result: { networkHash: checkingCreation ? id(0xff) : scope.networkId },
-      },
+      json: { jsonrpc: "2.0", id: request.id, result: { networkHash: scope.networkId } },
     });
   });
-  await page.route("**/api/token-discovery*", async (route) => {
+  // Swap searches the Launchpad app's token API on the same origin.
+  await page.route("**/launchpad/api/tokens*", async (route) => {
     searches.push(new URL(route.request().url()).searchParams.get("q") || "");
     await route.fulfill(
       unavailable
-        ? {
-            status: 502,
-            json: { error: { code: "unavailable", message: "Unavailable" } },
-          }
+        ? { status: 502, json: { error: "Unavailable" } }
         : {
             json: {
-              scope,
-              tokens: [a, b].map((tokenAddress) => ({
-                tokenAddress,
-                creatorAddress: a,
-                name: "Same token name",
-                symbol: "SAME",
+              tokens: [a, b].map((address, index) => ({
+                address,
+                creator: a,
+                name: `Token ${index}`,
+                symbol: `T${index}`,
                 decimals: 6,
+                initialSupply: "1",
+                blockHeight: "1",
+                transactionHash: a,
               })),
               hasMore: false,
-              historyLimited: true,
-              syncState: "idle",
+              indexedThrough: "1",
             },
           },
     );
@@ -210,167 +183,47 @@ try {
   await page
     .getByRole("heading", { name: "Connect your wallet", exact: true })
     .waitFor();
-  assert.equal(
-    page.url(),
-    url,
-    "Launchpad handoff must survive a disconnected visit",
-  );
-  checkingCreation = true;
+  assert.equal(page.url(), url, "Launchpad handoff must survive a disconnected visit");
   await page.getByRole("button", { name: "Open navigation" }).click();
   assert.equal(await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Create Pool" }).getAttribute("href"), "/pools/new");
   await page.getByRole("button", { name: "Close navigation" }).click();
-  networkReads = 0;
-  await page
-    .getByRole("button", {
-      name: "Connect wallet",
-      exact: true,
-    })
-    .click();
-  assert.equal(
-    await page.getByRole("combobox", { name: "Wallet provider" }).count(),
-    0,
-  );
+  await page.getByRole("button", { name: "Connect wallet", exact: true }).click();
   await page.getByRole("button", { name: "Disconnect" }).waitFor();
-  const selectedLink = page.getByRole("link", {
-    name: `Selected token address: ${a} (opens explorer in a new tab)`,
-  });
-  await selectedLink.waitFor();
-  assert.equal(
-    await selectedLink.getAttribute("href"),
-    `https://explorer.example.test/address/${a}`,
-  );
-  assert.equal(await selectedLink.getAttribute("rel"), "noopener noreferrer");
-  await selectedLink.focus();
-  await page.getByRole("tooltip").waitFor();
-  assert.equal(await page.getByRole("tooltip").textContent(), a);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-    "Full tooltip must fit the mobile viewport",
-  );
-  const addresses = page.getByLabel("Contract address", { exact: true });
-  await addresses.first().waitFor();
-  assert.equal(await addresses.first().inputValue(), a);
-  assert.equal(await addresses.nth(1).inputValue(), "");
-  assert.deepEqual(
-    await page
-      .getByLabel("Initial amount", { exact: true })
-      .evaluateAll((nodes) => nodes.map((node) => node.value)),
-    ["", ""],
-  );
-  await page
-    .getByText("RPC network mismatch. Check the connection and retry.")
-    .waitFor();
-  // Development StrictMode may start and abort the first mount's preview.
-  assert.ok(networkReads >= 1 && networkReads <= 2);
-  assert.equal(
-    await page
-      .getByRole("button", { name: "Review pool", exact: true })
-      .isDisabled(),
-    true,
-  );
-  const trigger = page.getByRole("button", {
-    name: "Search tokens for Token B",
-    exact: true,
-  });
+  const tokenA = page.getByLabel("Token A address", { exact: true });
+  const tokenB = page.getByLabel("Token B address", { exact: true });
+  await tokenA.waitFor();
+  assert.equal(await tokenA.inputValue(), a);
+  assert.equal(await tokenB.inputValue(), "");
+
+  const trigger = page.getByRole("button", { name: "Search tokens for Token B", exact: true });
   await trigger.tap();
-  const search = page.getByRole("combobox", {
-    name: "Search tokens for Token B",
-    exact: true,
-  });
+  const search = page.getByRole("combobox", { name: "Search tokens for Token B", exact: true });
   await search.waitFor();
-  assert.equal(
-    await search.evaluate((node) => node === document.activeElement),
-    true,
-  );
-  await page.getByRole("dialog").getByRole("option").nth(1).waitFor();
-  assert.equal(
-    await page
-      .locator('[role="option"] a, [role="option"] button, button a')
-      .count(),
-    0,
-  );
-  const highlighted = page.getByRole("link", {
-    name: `Highlighted token address: ${b} (opens explorer in a new tab)`,
-  });
-  await highlighted.waitFor();
-  await highlighted.focus();
-  const [explorerPage] = await Promise.all([
-    context.waitForEvent("page"),
-    highlighted.press("Enter"),
-  ]);
-  await explorerPage.waitForURL(`https://explorer.example.test/address/${b}`);
-  assert.equal(
-    await addresses.nth(1).inputValue(),
-    "",
-    "Opening explorer must not choose the highlighted token",
-  );
-  await explorerPage.close();
-  await search.focus();
+  await page.getByText("2 Launchpad tokens.", { exact: true }).waitFor();
   assert.equal(searches[0], "");
-  assert.equal(
-    await page
-      .getByRole("dialog")
-      .getByRole("option")
-      .first()
-      .getAttribute("aria-disabled"),
-    "true",
-  );
-  await search.fill("creator-not-in-labels");
-  await page.getByText("2 indexed suggestions.", { exact: true }).waitFor();
-  assert.equal(await page.getByRole("dialog").getByRole("option").count(), 2);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-    "320px page must not overflow",
-  );
+  await search.fill("T1");
+  await page.waitForFunction(() => document.querySelectorAll('[role="option"]').length === 2);
+  assert.ok(searches.includes("T1"));
   const bounds = await page.getByRole("dialog").boundingBox();
-  assert.ok(
-    bounds.x >= 0 && bounds.x + bounds.width <= 320,
-    "Popover must fit the mobile viewport",
-  );
-  await search.press("Enter");
-  assert.equal(await addresses.nth(1).inputValue(), b);
-  await page.waitForFunction(
-    () =>
-      document.activeElement?.getAttribute("aria-label") ===
-      "Search tokens for Token B",
-  );
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320, "Popover must fit the mobile viewport");
+  await page.getByRole("option").nth(1).tap();
+  assert.equal(await tokenB.inputValue(), b);
   assert.equal(page.url(), url);
-  await trigger.click();
-  await search.press("Escape");
-  await page.waitForFunction(
-    () =>
-      document.activeElement?.getAttribute("aria-label") ===
-      "Search tokens for Token B",
-  );
 
   unavailable = true;
   await trigger.click();
-  await search.fill(id(0x0a));
-  await page
-    .getByText("Token discovery is unavailable. Try again or use an address.")
-    .waitFor();
-  await page
-    .getByRole("option", { name: `Use address ${id(0x0a)}`, exact: true })
-    .tap();
-  assert.equal(await addresses.nth(1).inputValue(), id(0x0a));
-  assert.equal(page.url(), url);
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await trigger.click();
-  await search.waitFor();
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  assert.deepEqual(errors, []);
+  await search.fill("missing");
+  await page.getByText("Token search is unavailable. Paste an address instead.").waitFor();
   await page.keyboard.press("Escape");
+  await tokenB.fill(id(0x0a));
+  assert.equal(await tokenB.inputValue(), id(0x0a));
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "320px page must not overflow",
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  assert.deepEqual(errors, []);
   await checkBrand(page);
   const launchpad = await createServer({
     mode: "browser-test",
@@ -395,32 +248,7 @@ try {
     await launch.route("**/api/tokens?*", (route) =>
       route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          tokens: [],
-          total: 0,
-          limit: 20,
-          offset: 0,
-          asOfBlock: "1",
-          hasMore: false,
-          historyLimited: false,
-        }),
-      }),
-    );
-    const registryStatus = {
-      networkId: scope.networkId,
-      factoryAddress: scope.factoryAddress,
-      indexedThroughBlock: "1",
-      tokenCount: 0,
-      historyLimited: false,
-      syncState: "idle",
-      syncing: false,
-      lastSuccessfulSyncAt: null,
-      lastError: null,
-    };
-    await launch.route("**/api/registry/*", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify(registryStatus),
+        body: JSON.stringify({ tokens: [], hasMore: false, indexedThrough: "1" }),
       }),
     );
     await launch.goto(`${launchOrigin}/tokens`);
@@ -460,7 +288,7 @@ try {
     await launchpad.close();
   }
   console.log(
-    `PASS: Chromium ${browser.version()}; both apps, 320px/desktop layout, wallet controls, registry directory, token search, manual fallback and preset guards. No signing.`,
+    `PASS: Chromium ${browser.version()}; both apps, 320px/desktop layout, wallet controls, token directory, Launchpad token search, manual fallback and the Launchpad handoff. No signing.`,
   );
 } finally {
   await browser?.close();

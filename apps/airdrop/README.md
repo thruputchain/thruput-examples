@@ -5,10 +5,13 @@ An empty eligible-address list opens the airdrop to everyone. A nonempty list
 restricts it to those addresses. Rewards and eligibility are immutable after
 initialization; use a new deployment for a new distribution.
 
-The app follows the existing React, Vite, TanStack Query, and published Thruput
-SDK patterns. The server exposes public configuration and a read-only RPC proxy.
-The wallet signs and submits claims. No payout key, SQLite database, IP tracking,
-or proxy secret is needed at runtime. Caddy is only used for hosted routing.
+**What it shows:** a one-time claim that moves several tokens atomically, and
+contract views that decide what the page shows. The wallet signs and submits the
+claim. The server only serves public configuration and a read-only RPC proxy.
+The app needs no payout key or database.
+
+**Contracts:** [Airdrop](../../contracts/airdrop/README.md). Local setup
+creates its demo tokens with the [token factory](../../contracts/token-factory/README.md).
 
 ## Local setup
 
@@ -96,14 +99,32 @@ The saved block-one checkpoint lets setup and claim recovery detect a chain rese
 For separate demo fixtures, use `LAUNCHPAD_APP_ENV`, `LAUNCHPAD_APP_PUBLIC_DIR`,
 `SWAP_APP_ENV`, and `SWAP_APP_PUBLIC_DIR`. All paths are relative to the repo root.
 
-## Recovery and tests
+## Where the Thruput code is
 
-The browser saves signed evidence before submission. An uncertain outcome blocks
-a new claim and is checked using its original hash after reload. Use **Retry saved
-transaction** to submit the exact signed bytes through the original wallet.
-Use **Check expiry** to clear an expired record after a fresh on-chain claim-state
-check. A failed state check preserves the record. Confirmed receipts can be
-acknowledged. The contract independently prevents repeat claims.
+- [`src/claim.ts`](src/claim.ts): build the claim with the generated binding,
+  save it before broadcast, and observe it after a reload. It follows the
+  [Voting app's transaction pattern](../voting/README.md#the-transaction-pattern).
+- [`src/app.tsx`](src/app.tsx): contract views (`config`, `eligible`,
+  `hasClaimed`) and ERC20 balance reads.
+
+**Check again** looks the hash up, and clears the record when the chain passes
+the claim's expiry height without committing it; then the wallet can claim
+again. The contract itself prevents a second claim from the same wallet.
+
+## What this example leaves out on purpose
+
+- One claim at a time, in one browser tab. There are no cross-tab locks.
+- No rate limits, IP checks, or proof of unique people. The funded token budget
+  bounds the distribution.
+- No guard against switching wallet accounts in the moment between the
+  checkpoint read and the wallet prompt.
+- No check that the RPC endpoint keeps serving the same network. The SDK checks
+  the network when the app starts; an endpoint that later switches networks is
+  a deployment fault.
+- No handling of receipt results the SDK does not recognize yet. Only a
+  `return` counts as success; any other committed result shows as failed.
+
+## Tests
 
 ```sh
 npm run test --workspace apps/airdrop

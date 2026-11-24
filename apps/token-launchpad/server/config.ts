@@ -1,119 +1,68 @@
 import path from "node:path";
+import { addressFromBase58, toBase58 } from "@thruputchain/client";
+import { loadConfig } from "../src/config.ts";
 
-import type { RegistryScope } from "../shared/registry.ts";
-import {
-  boundedInteger,
-  canonicalAddress,
-  canonicalHash,
-  canonicalNetworkId,
-  ValidationError,
-} from "./validation.ts";
+/** Only these public values cross the server/browser boundary. */
+const PUBLIC_KEYS = [
+  "VITE_THRUPUT_NETWORK_ID",
+  "VITE_NATIVE_TOKEN_ADDRESS",
+  "VITE_NATIVE_BALANCE_ITEM_COST",
+  "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
+  "VITE_STANDARD_TOKEN_HASH",
+  "VITE_SWAP_APP_URL",
+  "VITE_EXPLORER_URL",
+] as const;
 
 export interface ServerConfig {
-  port: number;
+  rpcUrl: string;
+  networkId: string;
+  factoryAddress: string;
   databasePath: string;
-  rpcUrl: URL;
-  scope: RegistryScope;
-  syncIntervalMs: number;
-  pageSize: number;
+  publicConfig: Record<string, string>;
 }
 
-export type ServerEnvironment = Record<string, string | undefined>;
-
-export class ServerConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ServerConfigurationError";
-  }
-}
-
-export function loadServerConfig(environment: ServerEnvironment): ServerConfig {
-  try {
-    const databasePath = required(environment, "TOKEN_REGISTRY_DB_PATH");
-    if (databasePath.includes("\0") || path.basename(databasePath) === "") {
-      throw new ValidationError("TOKEN_REGISTRY_DB_PATH must be a file path");
-    }
-
-    const rpcUrl = parseUrl(required(environment, "VITE_THRUPUT_RPC_URL"));
-    return {
-      port: boundedInteger(required(environment, "PORT"), "PORT", 1, 65_535),
-      databasePath,
-      rpcUrl,
-      scope: {
-        networkId: canonicalNetworkId(
-          required(environment, "VITE_THRUPUT_NETWORK_ID"),
-          "VITE_THRUPUT_NETWORK_ID",
-        ),
-        factoryAddress: canonicalAddress(
-          required(environment, "VITE_STANDARD_TOKEN_FACTORY_ADDRESS"),
-          "VITE_STANDARD_TOKEN_FACTORY_ADDRESS",
-        ),
-        tokenCodeHash: canonicalHash(
-          required(environment, "VITE_STANDARD_TOKEN_HASH"),
-          "VITE_STANDARD_TOKEN_HASH",
-        ),
-      },
-      syncIntervalMs: optionalInteger(
-        environment,
-        "TOKEN_REGISTRY_SYNC_INTERVAL_MS",
-        5_000,
-        1_000,
-        86_400_000,
-      ),
-      pageSize: optionalInteger(
-        environment,
-        "TOKEN_REGISTRY_PAGE_SIZE",
-        200,
-        1,
-        500,
-      ),
-    };
-  } catch (error) {
-    if (error instanceof ServerConfigurationError) throw error;
-    const message =
-      error instanceof Error ? error.message : "Invalid server configuration";
-    throw new ServerConfigurationError(message);
-  }
-}
-
-function required(environment: ServerEnvironment, key: string): string {
-  const value = environment[key];
-  if (value === undefined || value === "") {
-    throw new ServerConfigurationError(`${key} is required`);
-  }
-  return value;
-}
-
-function optionalInteger(
-  environment: ServerEnvironment,
-  key: string,
-  fallback: number,
-  minimum: number,
-  maximum: number,
-): number {
-  const value = environment[key];
-  return value === undefined
-    ? fallback
-    : boundedInteger(value, key, minimum, maximum);
-}
-
-function parseUrl(value: string): URL {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new ValidationError("VITE_THRUPUT_RPC_URL must be a valid URL");
-  }
+export function parseRpcUrl(value: string): string {
+  const rpcUrl = new URL(value);
+  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(
+    rpcUrl.hostname,
+  );
   if (
-    (url.protocol !== "http:" && url.protocol !== "https:") ||
-    url.username !== "" ||
-    url.password !== "" ||
-    url.search !== "" ||
-    url.hash !== ""
-  ) {
-    throw new ValidationError(
-      "VITE_THRUPUT_RPC_URL must be an HTTP URL without credentials, a query string, or a fragment",
-    );
-  }
-  return url;
+    (rpcUrl.protocol !== "https:" &&
+      !(rpcUrl.protocol === "http:" && loopback)) ||
+    rpcUrl.username ||
+    rpcUrl.password ||
+    rpcUrl.search ||
+    rpcUrl.hash
+  )
+    throw new Error("Use HTTPS for devnet or loopback HTTP for a local node.");
+  return rpcUrl.href;
+}
+
+export function loadServerConfig(
+  env: Record<string, string | undefined>,
+  root: string,
+): ServerConfig {
+  const rpcUrl = parseRpcUrl(
+    env.VITE_THRUPUT_RPC_URL || env.THRUPUT_RPC_URL || "http://127.0.0.1:9545",
+  );
+  // Check the public values the browser will parse, so a bad environment
+  // fails at startup rather than in the browser.
+  loadConfig({ ...env, VITE_THRUPUT_RPC_URL: rpcUrl });
+  const factoryAddress = toBase58(
+    addressFromBase58(env.VITE_STANDARD_TOKEN_FACTORY_ADDRESS ?? ""),
+  );
+  return {
+    rpcUrl,
+    networkId: env.VITE_THRUPUT_NETWORK_ID!,
+    factoryAddress,
+    // One database per factory: a new deployment starts a new index.
+    databasePath:
+      env.TOKEN_REGISTRY_DB_PATH ||
+      path.join(root, ".local", `tokens-${factoryAddress}.sqlite`),
+    publicConfig: Object.fromEntries(
+      PUBLIC_KEYS.flatMap((key) =>
+        env[key] === undefined ? [] : [[key, env[key]!]],
+      ),
+    ),
+  };
 }

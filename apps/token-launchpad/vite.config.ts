@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { developmentRegistry } from "./server/development.ts";
+import { developmentServer } from "./server/development.ts";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig(({ command, mode }) => ({
@@ -15,10 +15,10 @@ export default defineConfig(({ command, mode }) => ({
     tailwindcss(),
     ...(command === "serve" && mode !== "test" && mode !== "browser-test"
       ? [
-          developmentRegistry({
+          developmentServer({
             ...loadEnv(mode, root, ""),
             ...process.env,
-          } as Record<string, string>),
+          }),
         ]
       : []),
   ],

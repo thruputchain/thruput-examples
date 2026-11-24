@@ -9,19 +9,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { CreatedToken } from "@/registry/tokens";
+import type { IndexedToken } from "./api";
 import { formatUnits } from "@thruputchain/client";
 import { useTokenBalance } from "@thruputchain/react";
+
+/** `formatUnits` takes at most 255 decimals, but a token can declare more. */
+const MAX_DISPLAY_DECIMALS = 255;
+
+/** A token amount in whole units, or in base units if its decimals cannot be shown. */
+export function formatTokenAmount(value: bigint, decimals: number | null) {
+  return decimals === null || decimals > MAX_DISPLAY_DECIMALS
+    ? `${value} base units`
+    : formatUnits(value, decimals);
+}
 
 export function TokenCards({
   tokens,
   connected,
 }: {
-  tokens: readonly CreatedToken[];
+  tokens: readonly IndexedToken[];
   connected: boolean;
 }) {
-  const amount = (value: bigint, decimals: number | null) =>
-    decimals === null ? `${value} base units` : formatUnits(value, decimals);
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {tokens.map((token) => (
@@ -29,21 +37,21 @@ export function TokenCards({
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle>{token.symbol}</CardTitle>
+                <CardTitle>{token.symbol ?? "TOKEN"}</CardTitle>
                 <CardDescription>
-                  {token.name} ·{" "}
+                  {token.name ?? "Unnamed token"} ·{" "}
                   {token.decimals === null
                     ? "Unsupported decimals"
                     : `${token.decimals} decimals`}
                 </CardDescription>
               </div>
-              <Badge variant="secondary">Block {token.block.toString()}</Badge>
+              <Badge variant="secondary">Block {token.blockHeight}</Badge>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Detail
               label="Initial supply"
-              value={amount(token.initialSupply, token.decimals)}
+              value={formatTokenAmount(BigInt(token.initialSupply), token.decimals)}
             />
             <Detail
               label={connected ? "Your balance" : "Wallet balance"}
@@ -52,12 +60,9 @@ export function TokenCards({
               }
             />
             <Detail
-              label="Administrator"
+              label="Creator"
               value={
-                <BlockchainIdentifier
-                  kind="address"
-                  value={token.administrator}
-                />
+                <BlockchainIdentifier kind="address" value={token.creator} />
               }
             />
             <div className="flex items-center gap-2 rounded-lg bg-muted p-3 font-mono text-xs">
@@ -77,7 +82,7 @@ export function TokenCards({
   );
 }
 
-function TokenBalance({ token }: { token: CreatedToken }) {
+function TokenBalance({ token }: { token: IndexedToken }) {
   const balance = useTokenBalance({
     token: token.address,
     query: { staleTime: 10_000, refetchInterval: 15_000, retry: 1 },
@@ -86,9 +91,7 @@ function TokenBalance({ token }: { token: CreatedToken }) {
     <span role="status">
       {balance.data ? (
         <>
-          {token.decimals === null
-            ? `${balance.data.rawBalance} base units`
-            : formatUnits(balance.data.rawBalance, token.decimals)}
+          {formatTokenAmount(balance.data.rawBalance, token.decimals)}
           {balance.isError ? " (refresh unavailable)" : ""}
         </>
       ) : balance.isError ? (

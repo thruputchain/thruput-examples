@@ -4,13 +4,13 @@ Five teaching apps. Each one shows a Thruput pattern in a small React app with
 a small Node.js server. They are not production services: each README lists
 what the app leaves out on purpose.
 
-| App                                          | What it shows                                              | Local URL             |
-| -------------------------------------------- | ---------------------------------------------------------- | --------------------- |
-| [Counter](counter/README.md)                 | Many concurrent transactions, signed by a development key  | http://127.0.0.1:5175 |
-| [Voting](voting/README.md)                   | Wallet transactions, reads, and recovery after a reload    | http://127.0.0.1:5176 |
-| [Airdrop](airdrop/README.md)                 | A one-time claim per wallet                                | http://127.0.0.1:5177 |
-| [Token Launchpad](token-launchpad/README.md) | Factory-created tokens and a small event indexer           | http://127.0.0.1:5173 |
-| [Swap](swap/README.md)                       | Queued requests, cranking, and liquidity                   | http://127.0.0.1:5174 |
+| App | What it shows | Contracts | Local URL |
+| --- | --- | --- | --- |
+| [Counter](counter/README.md) | Many concurrent transactions, signed by a development key | [Counter](../contracts/counter/README.md) | http://127.0.0.1:5175 |
+| [Voting](voting/README.md) | Wallet transactions, reads, and recovery after a reload | [Voting](../contracts/voting/README.md) | http://127.0.0.1:5176 |
+| [Airdrop](airdrop/README.md) | A one-time claim per wallet | [Airdrop](../contracts/airdrop/README.md) | http://127.0.0.1:5177 |
+| [Token Launchpad](token-launchpad/README.md) | Factory-created tokens and a small event indexer | [Token factory](../contracts/token-factory/README.md) | http://127.0.0.1:5173 |
+| [Swap](swap/README.md) | Queued requests, cranking, and liquidity | [Swap](../contracts/swap/README.md), [ERC20](../contracts/erc20/README.md) | http://127.0.0.1:5174 |
 
 Start with Voting. It is the smallest wallet app, and the other wallet apps use
 its transaction pattern.

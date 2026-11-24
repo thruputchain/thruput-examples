@@ -1,167 +1,82 @@
 import { toBase58 } from "@thruputchain/client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  keepPreviousData,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { AppConfig } from "@/config";
 import { userErrorMessage } from "@/lib/errors";
-import {
-  getRegistryStatus,
-  getRegistryTokens,
-  requestRegistrySync,
-  type RegistrySort,
-} from "@/registry/client";
-import { registryTokenToCreatedToken } from "@/registry/tokens";
+import { fetchTokens } from "./api";
+
+export const PAGE_SIZE = 20;
 
 export interface DirectoryOptions {
   config: AppConfig;
   scope: "all" | "mine";
   readOnly?: boolean;
-  registryRead?: typeof getRegistryTokens;
-  registryStatus?: typeof getRegistryStatus;
-  registrySync?: typeof requestRegistrySync;
+  read?: typeof fetchTokens;
 }
 
+/** Search and page through the tokens the indexer has saved. */
 export function useTokenDirectory({
   config,
   scope,
-  registryRead = getRegistryTokens,
-  registryStatus = getRegistryStatus,
-  registrySync = requestRegistrySync,
+  read = fetchTokens,
 }: DirectoryOptions) {
-  const queries = useQueryClient();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<RegistrySort>("newest");
-  const [pagination, setPagination] = useState<{
-    offset: number;
-    asOfBlock?: string;
-  }>({ offset: 0 });
-  const lastStatus = useRef(0);
-  const prefix = useMemo(
-    () => [
-      "token-registry",
-      config.networkId,
-      toBase58(config.factoryAddress),
-      toBase58(config.expectedTokenHash),
-    ],
-    [config],
-  );
-  const statusKey = useMemo(() => [...prefix, "status"], [prefix]);
-  const pageKey = useMemo(
-    () => [
-      ...prefix,
-      "page",
-      scope === "mine" ? toBase58(config.accountAddress) : null,
-      query,
-      sort,
-      pagination,
-    ],
-    [prefix, scope, config.accountAddress, query, sort, pagination],
-  );
+  const [offset, setOffset] = useState(0);
+  // The block the first page stopped at. Later pages list up to it, so new
+  // launches do not shift them; the first page shows new launches as usual.
+  const [asOfBlock, setAsOfBlock] = useState<string | null>(null);
+  const creator = scope === "mine" ? toBase58(config.accountAddress) : undefined;
 
   useEffect(() => {
-    if (search === query) return;
     const timer = setTimeout(() => {
-      setPagination({ offset: 0 });
-      setQuery(search);
+      setOffset(0);
+      setQuery(search.trim());
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, query]);
+  }, [search]);
 
   const page = useQuery({
-    queryKey: pageKey,
+    queryKey: [
+      "tokens",
+      config.networkId,
+      creator,
+      query,
+      offset,
+      offset === 0 ? null : asOfBlock,
+    ],
     queryFn: ({ signal }) =>
-      registryRead(
-        config,
+      read(
         {
           ...(query ? { q: query } : {}),
-          ...(scope === "mine"
-            ? { creator: toBase58(config.accountAddress) }
-            : {}),
-          sort,
-          limit: 20,
-          ...pagination,
+          ...(creator ? { creator } : {}),
+          limit: PAGE_SIZE,
+          offset,
+          ...(offset > 0 && asOfBlock ? { asOfBlock } : {}),
         },
         signal,
       ),
     placeholderData: keepPreviousData,
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-  const readFreshness = useMemo(() => {
-    let first = true;
-    return async (signal: AbortSignal) => {
-      if (first) {
-        first = false;
-        try {
-          return await registrySync(config, signal);
-        } catch {
-          signal.throwIfAborted();
-        }
-      }
-      return registryStatus(config, signal);
-    };
-  }, [config, registrySync, registryStatus]);
-  const status = useQuery({
-    queryKey: statusKey,
-    queryFn: ({ signal }) => readFreshness(signal),
-    refetchInterval: (query) => (query.state.data?.syncing ? 1_000 : 15_000),
+    // The indexer reads new blocks every few seconds.
+    refetchInterval: 5_000,
     retry: false,
   });
-  const statusVersion = queries.getQueryState(statusKey)?.dataUpdateCount ?? 0;
+
   useEffect(() => {
-    if (status.isFetching) return;
-    const previous = lastStatus.current;
-    lastStatus.current = statusVersion;
-    if (!previous || previous === statusVersion) return;
-    if (
-      document.visibilityState === "visible" &&
-      status.dataUpdatedAt &&
-      !status.data?.syncing &&
-      !queries.isFetching({ queryKey: pageKey })
-    ) {
-      if (pagination.offset === 0 && pagination.asOfBlock !== undefined)
-        setPagination({ offset: 0 });
-      else void queries.invalidateQueries({ queryKey: pageKey, exact: true });
-    }
-  }, [
-    statusVersion,
-    status.isFetching,
-    status.data?.syncing,
-    queries,
-    pageKey,
-    pagination,
-  ]);
+    if (offset === 0 && page.data && !page.isPlaceholderData)
+      setAsOfBlock(page.data.asOfBlock);
+  }, [offset, page.data, page.isPlaceholderData]);
 
   return {
     search,
-    sort,
-    offset: pagination.offset,
-    page: page.data ?? null,
-    tokens: (page.data?.tokens ?? []).map(registryTokenToCreatedToken),
-    status: status.data ?? null,
-    statusError: status.isError,
-    error: page.error
-      ? userErrorMessage(page.error, "The token registry is unavailable")
-      : null,
-    loading: page.isFetching,
     setSearch,
-    setSort(value: RegistrySort) {
-      setPagination({ offset: 0 });
-      setSort(value);
-    },
-    changePage(offset: number) {
-      setPagination({
-        offset,
-        ...(page.data ? { asOfBlock: page.data.asOfBlock } : {}),
-      });
-    },
-    refresh() {
-      void page.refetch();
-    },
+    offset,
+    setOffset,
+    page: page.data ?? null,
+    loading: page.isFetching,
+    error: page.error
+      ? userErrorMessage(page.error, "The token list is unavailable")
+      : null,
+    refresh: () => void page.refetch(),
   };
 }

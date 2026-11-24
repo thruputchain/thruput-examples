@@ -124,6 +124,7 @@ npm run test:counter
 npm run test:voting
 npm run test:token-launchpad
 npm run test:swap
+npm run test:launchpad-swap
 npm run test:airdrop
 npm run test:seed
 npm run test:batching
@@ -139,6 +140,9 @@ temporary directory printed by the runner.
 `test:token-launchpad` checks both setup modes and token creation from the
 published artifact on an isolated nonzero-network node. It also checks that a
 wrong network pin preserves the previous environment.
+`test:launchpad-swap` drives both apps in Chromium with a test wallet that
+signs: two token launches, pool creation from Launchpad's link and token
+search, a swap, liquidity added across a reload, and liquidity removed.
 `test:swap` checks both setup modes, first-pool creation from the public LP
 artifact, liquidity processing, and swap balances on an isolated nonzero-network
 node. It also checks network-pin rejection without replacing existing output.

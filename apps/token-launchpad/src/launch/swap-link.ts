@@ -1,37 +1,12 @@
-import { addressFromBase58, toBase58 } from "@thruputchain/client";
-
 import type { AppConfig } from "@/config";
-import type { LaunchWorkflow } from "@/launch/workflow";
 
+/** A link to Swap's "Create pool" page with the new token filled in. */
 export function createAmmPoolLink(
-  validatedOrigin: AppConfig["swapAppUrl"],
-  workflow: Pick<
-    LaunchWorkflow,
-    "creation" | "verification" | "createdAddress"
-  > | null,
+  swapAppUrl: AppConfig["swapAppUrl"],
+  tokenAddress: string,
 ): string | null {
-  if (
-    !validatedOrigin ||
-    workflow?.creation.status !== "committed" ||
-    workflow.verification.status !== "complete" ||
-    !workflow.createdAddress ||
-    !isNonzeroAddress(workflow.createdAddress)
-  ) {
-    return null;
-  }
-
-  const url = new URL("pools/new", `${validatedOrigin.replace(/\/$/, "")}/`);
-  url.search = new URLSearchParams({
-    tokenA: workflow.createdAddress,
-  }).toString();
+  if (!swapAppUrl) return null;
+  const url = new URL("pools/new", `${swapAppUrl.replace(/\/$/, "")}/`);
+  url.search = new URLSearchParams({ tokenA: tokenAddress }).toString();
   return url.href;
-}
-
-function isNonzeroAddress(value: string): boolean {
-  try {
-    const address = addressFromBase58(value);
-    return toBase58(address) === value && address.some((byte) => byte !== 0);
-  } catch {
-    return false;
-  }
 }
