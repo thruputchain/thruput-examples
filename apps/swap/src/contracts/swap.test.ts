@@ -93,3 +93,13 @@ it("rejects a token whose decimals this app cannot format", async () => {
     /WIDE declares 300 decimals; this app supports at most 255/,
   );
 });
+
+it("reads missing decimals as the fallback, as for a pool's LP token", async () => {
+  const metadata = ERC20Metadata.v0_1;
+  vi.spyOn(metadata.name, "view").mockResolvedValue({ value: null } as never);
+  vi.spyOn(metadata.symbol, "view").mockResolvedValue({ value: null } as never);
+  vi.spyOn(metadata.decimals, "view").mockResolvedValue({ value: null } as never);
+  const reader = { client: {}, factory: address(4), caller: address(5) } as never;
+  expect((await readToken(reader, address(6))).decimals).toBe(0);
+  expect((await readToken(reader, address(6), 6)).decimals).toBe(6);
+});

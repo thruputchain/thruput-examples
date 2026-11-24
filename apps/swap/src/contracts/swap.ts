@@ -77,10 +77,14 @@ export interface Reader {
 
 // ── Reads ────────────────────────────────────────────────────────────────
 
-/** Token metadata, with the address as a fallback for a missing symbol. */
+/**
+ * Token metadata, with the address as a fallback for a missing name or
+ * symbol, and `fallbackDecimals` for missing decimals.
+ */
 export async function readToken(
   { client, caller }: Reader,
   address: ContractAddress,
+  fallbackDecimals = 0,
 ): Promise<Token> {
   const views = { client, address, caller };
   const [name, symbol, decimals] = await Promise.all([
@@ -91,7 +95,7 @@ export async function readToken(
   const unnamed = tokenByAddress(address);
   const symbolText = symbol.value ?? unnamed.symbol;
   // A token can declare any u32, but amounts here format at most 255 decimals.
-  const places = decimals.value ?? 0n;
+  const places = decimals.value ?? BigInt(fallbackDecimals);
   if (places > MAX_DECIMALS)
     throw new Error(
       `${symbolText} declares ${places} decimals; this app supports at most ${MAX_DECIMALS}.`,
@@ -103,6 +107,12 @@ export async function readToken(
     decimals: Number(places),
   };
 }
+
+/**
+ * A pool's LP token declares no decimals. The app shows and reads LP amounts
+ * with six, as the previous Swap app did, so balances keep their units.
+ */
+const LP_TOKEN_DECIMALS = 6;
 
 /** The most decimals `formatAmount` and `parseAmount` take. */
 const MAX_DECIMALS = 255n;
@@ -150,7 +160,7 @@ export async function readPool(
   const [first, second, lpToken] = await Promise.all([
     readToken(reader, token0),
     readToken(reader, token1),
-    readToken(reader, addresses.liquidityToken),
+    readToken(reader, addresses.liquidityToken, LP_TOKEN_DECIMALS),
   ]);
   return { ...addresses, token0: first, token1: second, lpToken };
 }
