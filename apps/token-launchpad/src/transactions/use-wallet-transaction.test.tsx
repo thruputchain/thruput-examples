@@ -286,3 +286,33 @@ it("keeps a transaction whose outcome the node cannot tell, until the user forge
   expect(result.current.pending).toBeNull();
   expect(localStorage.getItem(key)).toBeNull();
 });
+
+it("reports a transaction once, also when another copy of the hook reported it first", async () => {
+  const receipt = { execution: { result: "return" } } as TransactionReceipt;
+  let reply!: () => void;
+  const replied = new Promise<void>((done) => (reply = done));
+  mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
+    await options.onSigned(signed);
+    await replied;
+    return { receipt };
+  });
+  const firstDone = vi.fn();
+  const first = renderHook(() => useWalletTransaction(key, firstDone));
+  let sent!: Promise<void>;
+  act(() => {
+    sent = first.result.current.send("Launch token", () => ({ calls: [call] }), {});
+  });
+  await waitFor(() => expect(localStorage.getItem(key)).not.toBeNull());
+
+  // The page remounts (an account switch and back), and the new copy sees the receipt.
+  mocks.receipt = receipt;
+  const secondDone = vi.fn();
+  renderHook(() => useWalletTransaction(key, secondDone));
+  await waitFor(() => expect(secondDone).toHaveBeenCalledTimes(1));
+  expect(localStorage.getItem(key)).toBeNull();
+
+  // The first copy's wallet reply arrives late; it must not report again.
+  reply();
+  await act(() => sent);
+  expect(firstDone).not.toHaveBeenCalled();
+});

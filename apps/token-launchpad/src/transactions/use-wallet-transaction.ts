@@ -92,9 +92,17 @@ export function useWalletTransaction<T>(
     setPending((shown) => (shown?.hash === saved.hash ? null : shown));
   }
 
-  // The same receipt can arrive from `send` and from the receipt query.
+  // The same receipt can arrive from `send` and from the receipt query, and
+  // from another copy of this hook (the page remounts on an account switch).
+  // The saved record says it is not reported yet: whoever reports it first
+  // clears it, and a newer transaction replaces it.
   function finish(saved: Pending<T>, transactionReceipt: TransactionReceipt) {
     if (done.current.hash === saved.hash) return;
+    if (load<T>(key)?.hash !== saved.hash) {
+      done.current.hash = saved.hash;
+      setPending((shown) => (shown?.hash === saved.hash ? null : shown));
+      return;
+    }
     const execution = transactionReceipt.execution;
     const result: Completed<T> = {
       label: saved.label,
