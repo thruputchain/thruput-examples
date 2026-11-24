@@ -1,0 +1,8 @@
+#![cfg_attr(not(feature = "dev"), no_std)]
+
+extern crate alloc;
+
+mod implementation;
+pub use implementation::*;
+
+thruput_sdk::declare_mock_contract!();

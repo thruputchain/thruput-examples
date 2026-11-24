@@ -36,6 +36,7 @@ These combine several concepts. Read a basic example first.
 | [ERC20](erc20/README.md) | Token balances, allowances, metadata, and permits |
 | [Voting](voting/README.md) | Admin permissions, a poll lifecycle, and mergeable vote totals |
 | [Airdrop](airdrop/README.md) | Atomic token claims with optional address eligibility |
+| [Fixed odds](fixed-odds/README.md) | A betting book whose solvency the runtime checks across a block's bets |
 
 The [Voting](../apps/voting/README.md) and [Airdrop](../apps/airdrop/README.md)
 apps run on these contracts.

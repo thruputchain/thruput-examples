@@ -60,7 +60,8 @@ order, in three tiers:
 
 - **Basics:** Counter, Fibonacci, Events, Cross-call, error handling, and
   interfaces.
-- **Intermediate:** ERC20, Voting, Airdrop, and an oracle consumer.
+- **Intermediate:** ERC20, Voting, Airdrop, an oracle consumer, and a fixed-odds
+  betting book.
 - **Advanced projects:** groups of crates that work together: Token factory,
   Swap, Permit, Stellar account, Waitlist, and Speedex. Swap and Speedex include
   benchmarks.
