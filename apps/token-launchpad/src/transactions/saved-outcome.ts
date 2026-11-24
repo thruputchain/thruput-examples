@@ -64,8 +64,12 @@ export async function readSavedOutcome(
   // The first block that could include the transaction (block 1 at the least).
   const first = expiresAt > EXPIRY_BLOCKS ? expiresAt - EXPIRY_BLOCKS + 1n : 1n;
   const kept = await indexedRange(client, expiresAt);
-  // Without a reported oldest block, nothing proves the window is kept.
-  if (kept.oldest === null || kept.oldest > first) return "unknown";
+  // Without a reported range, nothing proves the window is kept.
+  if (kept.oldest === null) return "unknown";
+  // The final read must cover the whole window: an index now behind
+  // `expiresAt` (a lagging node behind the same endpoint) proves nothing yet.
+  if (kept.latest < expiresAt) return "notIndexed";
+  if (kept.oldest > first) return "unknown";
   return "expired";
 }
 

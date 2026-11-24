@@ -370,3 +370,22 @@ it("does not call a transaction expired when the final history read gives no ran
   expect(result.current.pending).toEqual(record);
   expect(result.current.unknownOutcome).toBe(true);
 });
+
+it("does not call a transaction expired when the final read is indexed less far", async () => {
+  const record = { ...saved, expiresAt: "5000" };
+  savePending(key, record);
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  const page = (latest: bigint) => ({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: latest,
+  });
+  mocks.getTransactionsByBlock
+    .mockResolvedValueOnce(page(5004n))
+    .mockResolvedValueOnce(page(4999n));
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).toEqual(record);
+  expect(result.current.message).toMatch(/has not indexed block 5000/);
+});
