@@ -4,15 +4,12 @@ import {
   useWaitForTransactionReceipt,
   useWalletClient,
 } from "@thruputchain/react";
-import {
-  hashFromBase58,
-  type ContractCall,
-  type TransactionReceipt,
-} from "@thruputchain/client";
+import { type ContractCall, type TransactionReceipt } from "@thruputchain/client";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
 import { walletGasLimit } from "@thruputchain/client/wallet";
 import { gasAmount, type Contract } from "@thruputchain/protocol";
 import { userErrorMessage } from "@/lib/errors";
+import { EXPIRY_BLOCKS, readSavedOutcome } from "./saved-outcome";
 
 /**
  * The record saved before the wallet broadcasts a transaction. The Voting app
@@ -142,7 +139,7 @@ export function useWalletTransaction<T>(
               gasAmount(2_000_000n),
             ),
           ),
-          expiryBlocks: 1_000n,
+          expiryBlocks: EXPIRY_BLOCKS,
           ...(request.contractsToDeploy
             ? { contractsToDeploy: request.contractsToDeploy }
             : {}),
@@ -174,32 +171,31 @@ export function useWalletTransaction<T>(
   }
 
   /**
-   * Look the saved hash up. Never sends anything.
-   *
-   * Read the tip first. The transaction cannot commit after `expiresAt`, so if
-   * the tip is past it and the node then reports no commitment, it never will.
-   * Read in the other order, a commit between the two reads looks like expiry.
-   * The status reports a recent commit before its receipt is indexed; the
-   * receipt covers an older one.
+   * Look the saved hash up. Never sends anything. The Voting app's
+   * `checkAgain` and `readSavedOutcome` explain the order of the reads.
    */
   async function checkAgain() {
     if (!pending) return;
     setMessage(null);
     try {
-      const transactionHash = hashFromBase58(pending.hash);
-      const tip = await client.getChainTip();
-      const status = await client.getTransactionStatus({ transactionHash });
-      const committed =
-        ("status" in status && status.status === "committed") ||
-        (await client.getTransactionReceipt({ transactionHash })) !== null;
-      if (!committed && tip.blockHeight > BigInt(pending.expiresAt)) {
-        forget();
+      const expiresAt = BigInt(pending.expiresAt);
+      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      if (outcome === "observe") {
+        await receipt.refetch();
+        return;
+      }
+      if (outcome === "notIndexed") {
         setMessage(
-          `${pending.label} expired without committing (${pending.hash}). You can try again.`,
+          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${pending.label} committed. Check again shortly.`,
         );
         return;
       }
-      await receipt.refetch();
+      forget();
+      setMessage(
+        outcome === "expired"
+          ? `${pending.label} expired without committing (${pending.hash}). You can try again.`
+          : `The node no longer keeps the blocks that could hold ${pending.label} (${pending.hash}). Look it up in an explorer before you try again.`,
+      );
     } catch (error) {
       setMessage(userErrorMessage(error, "The check failed."));
     }

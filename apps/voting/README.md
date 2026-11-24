@@ -101,11 +101,20 @@ The rest is ordinary app code: `src/pages/` and `src/components/` hold the UI,
 
 A timeout does not mean the transaction failed, so the app never signs a new
 one on its own. **Check again** looks the hash up. The app clears the record
-when a receipt arrives, or when the chain passes the transaction's expiry
-height without committing it; then the user can send again. It reads the
-chain tip before it asks whether the transaction committed, so a commit
-between the two reads is not mistaken for expiry. The record is per account,
-so another account is not blocked. See
+when a receipt arrives, or when it can prove the transaction never committed;
+then the user can send again. [`saved-outcome.ts`](src/transactions/saved-outcome.ts)
+does the proof, in an order that cannot miss a commit:
+
+1. The chain tip. Until it passes the expiry height, the transaction can still
+   commit.
+2. How far the node has indexed receipts. A missing receipt proves nothing for
+   a block the node has not indexed yet, so the app waits for it.
+3. The transaction's status, which shows a recent commit before its receipt is
+   indexed, then the receipt.
+
+If the node no longer keeps the blocks that could hold the transaction, the
+app says the outcome is unknown and shows the hash to look up. The record is
+per account, so another account is not blocked. See
 [When a write times out](../../examples/typescript/README.md#when-a-write-times-out).
 
 Setup credits the contract with 1 native token for storage. Wallets need free

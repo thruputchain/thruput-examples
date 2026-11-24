@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   getTransactionReceipt: vi.fn(),
   getChainTip: vi.fn(),
   getTransactionStatus: vi.fn(),
+  getTransactionsByBlock: vi.fn(),
   refetch: vi.fn(),
   receipt: null as TransactionReceipt | null,
   receiptError: null as Error | null,
@@ -100,6 +101,12 @@ beforeEach(async () => {
   mocks.getTransactionReceipt.mockReset().mockResolvedValue(null);
   mocks.getChainTip.mockReset().mockResolvedValue({ blockHeight: 50n });
   mocks.getTransactionStatus.mockReset().mockResolvedValue({ status: "unknown" });
+  mocks.getTransactionsByBlock.mockReset().mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 200n,
+  });
   mocks.refetch.mockReset().mockResolvedValue({});
   mocks.receipt = null;
   mocks.receiptError = null;
@@ -199,4 +206,69 @@ it("reports a committed transaction whose execution failed", async () => {
   await waitFor(() => expect(result.current.message).toMatch(/execution failed/));
   expect(result.current.completed).toBeNull();
   expect(loadPending(key)).toBeNull();
+});
+
+it("keeps a transaction past expiry until the node has indexed its blocks", async () => {
+  savePending(key, saved);
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 99n,
+  });
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).toEqual(saved);
+  expect(result.current.message).toMatch(/has not indexed block 100/);
+  // The index range is read before the receipt, so a block indexed between
+  // the two reads cannot hide a commit.
+  expect(mocks.getTransactionsByBlock.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.getTransactionReceipt.mock.invocationCallOrder[0]!,
+  );
+});
+
+it("reports an unknown outcome when the node no longer keeps the blocks", async () => {
+  savePending(key, { ...saved, expiresAt: "5000" });
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 4500n,
+    latestIndexedBlockHeight: 9000n,
+  });
+  const { result } = renderHook(() => useTransaction(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(result.current.pending).toBeNull();
+  expect(result.current.message).toMatch(/no longer keeps the blocks/);
+  expect(result.current.message).toContain(saved.hash);
+});
+
+it("does not unblock another account when this account's transaction finishes", async () => {
+  const other = toBase58(new Uint8Array(32).fill(8));
+  const otherKey = key.replace(signerAddress, other);
+  const otherSaved = { ...saved, label: "Close poll", hash: toBase58(new Uint8Array(32).fill(9)) };
+  savePending(otherKey, otherSaved);
+  let commit!: () => void;
+  const committed = new Promise<void>((done) => (commit = done));
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await options.onSigned(signed);
+    await committed;
+    return { receipt: success };
+  });
+  const { result, rerender } = renderHook(() => useTransaction(config), { wrapper });
+  let sent!: Promise<void>;
+  act(() => {
+    sent = result.current.send("Submit answer", invocation);
+  });
+  // The user switches accounts while the first transaction is in flight.
+  mocks.wallet = { address: other };
+  rerender();
+  await waitFor(() => expect(result.current.pending).toEqual(otherSaved));
+  commit();
+  await act(() => sent);
+  expect(result.current.pending).toEqual(otherSaved);
+  expect(loadPending(otherKey)).toEqual(otherSaved);
+  expect(loadPending(key)).toBeNull();
+  expect(result.current.completed).toBeNull();
 });

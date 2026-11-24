@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   getTransactionReceipt: vi.fn(),
   getChainTip: vi.fn(),
   getTransactionStatus: vi.fn(),
+  getTransactionsByBlock: vi.fn(),
   getBlockByHeight: vi.fn(),
   refetch: vi.fn(),
   wallet: {} as Record<string, unknown>,
@@ -103,6 +104,12 @@ beforeEach(async () => {
   });
   mocks.getChainTip.mockResolvedValue({ blockHeight: 50n });
   mocks.getTransactionStatus.mockResolvedValue({ status: "unknown" });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 200n,
+  });
   mocks.getTransactionReceipt.mockResolvedValue(null);
   mocks.refetch.mockResolvedValue({});
   mocks.wallet = { status: "connected", address: evidence.account.address };
@@ -184,4 +191,47 @@ it("does not block another wallet account with this account's saved claim", asyn
   const { result } = renderHook(() => useClaim(config), { wrapper });
   await waitFor(() => expect(result.current.pending).toBeNull());
   expect(result.current.blocked).toBe(false);
+});
+
+it("keeps a claim past expiry until the node has indexed its blocks", async () => {
+  mocks.getChainTip.mockResolvedValue({ blockHeight: 101n });
+  mocks.getTransactionsByBlock.mockResolvedValue({
+    transactions: [],
+    nextCursor: null,
+    oldestIndexedBlockHeight: 0n,
+    latestIndexedBlockHeight: 99n,
+  });
+  const { result } = renderHook(() => useClaim(config), { wrapper });
+  await act(() => result.current.checkAgain());
+  expect(localStorage.getItem(key)).not.toBeNull();
+  expect(result.current.message).toMatch(/has not indexed block 100/);
+});
+
+it("does not unblock another account when this account's claim finishes", async () => {
+  const other = config.address;
+  const otherRecord = { hash: toBase58(new Uint8Array(32).fill(9)), expiresAt: "100" };
+  localStorage.setItem(keyFor(other), JSON.stringify(otherRecord));
+  const { result, rerender } = claimFromScratch();
+  localStorage.setItem(keyFor(other), JSON.stringify(otherRecord));
+  let commit!: () => void;
+  const committed = new Promise<void>((done) => (commit = done));
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await options.onSigned(evidence);
+    await committed;
+    return { receipt: success };
+  });
+  let sent!: Promise<void>;
+  act(() => {
+    sent = result.current.send();
+  });
+  await waitFor(() => expect(mocks.execute).toHaveBeenCalled());
+  mocks.wallet.address = other;
+  rerender();
+  await waitFor(() => expect(result.current.pending).toEqual(otherRecord));
+  commit();
+  await act(() => sent);
+  expect(result.current.pending).toEqual(otherRecord);
+  expect(localStorage.getItem(keyFor(other))).not.toBeNull();
+  expect(localStorage.getItem(key)).toBeNull();
+  expect(result.current.message).toBe("");
 });

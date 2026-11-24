@@ -6,21 +6,13 @@ import {
   useWaitForTransactionReceipt,
   useWallet,
 } from "@thruputchain/react";
-import {
-  hashFromBase58,
-  toBase58,
-  type TransactionReceipt,
-} from "@thruputchain/client";
+import { toBase58, type TransactionReceipt } from "@thruputchain/client";
 import { parseSignedTransactionHex } from "@thruputchain/client/provider";
 import type { Invocation } from "@thruputchain/protocol";
 import { GAS } from "../contracts/polls";
 import { errorMessage, type AppConfig } from "../config";
-import {
-  clearPending,
-  loadPending,
-  savePending,
-  type Pending,
-} from "./pending";
+import { clearPending, loadPending, savePending, type Pending } from "./pending";
+import { EXPIRY_BLOCKS, readSavedOutcome } from "./saved-outcome";
 
 /**
  * Send one wallet transaction at a time, and survive a reload.
@@ -51,21 +43,32 @@ export function useTransaction(config: AppConfig) {
   // The hash already reported: the receipt arrives from `send` and from the
   // receipt query.
   const reported = useRef<string | null>(null);
+  // The account whose record the page shows now. A transaction can finish
+  // after the user switched accounts.
+  const shownKey = useRef(key);
+  shownKey.current = key;
   const receipt = useWaitForTransactionReceipt({
     hash: pending?.hash ?? null,
   });
 
   useEffect(() => setPending(loadPending(key)), [key]);
 
-  function forget() {
-    clearPending(key);
-    setPending(null);
+  /** Clear one record, and the page only if it still shows that record. */
+  function forget(savedKey: string, saved: Pending) {
+    clearPending(savedKey);
+    setPending((shown) => (shown?.hash === saved.hash ? null : shown));
   }
 
-  function finish(saved: Pending, transactionReceipt: TransactionReceipt) {
+  function finish(
+    savedKey: string,
+    saved: Pending,
+    transactionReceipt: TransactionReceipt,
+  ) {
     if (reported.current === saved.hash) return;
     reported.current = saved.hash;
-    forget();
+    forget(savedKey, saved);
+    void queries.invalidateQueries({ queryKey: ["voting"] });
+    if (savedKey !== shownKey.current) return;
     const execution = transactionReceipt.execution;
     if ("result" in execution && execution.result === "return")
       setCompleted(saved.label);
@@ -73,11 +76,10 @@ export function useTransaction(config: AppConfig) {
       setMessage(
         `${saved.label} committed, but execution failed. No changes were applied.`,
       );
-    void queries.invalidateQueries({ queryKey: ["voting"] });
   }
 
   useEffect(() => {
-    if (pending && receipt.data) finish(pending, receipt.data);
+    if (pending && receipt.data) finish(key, pending, receipt.data);
   }, [receipt.data]);
 
   async function send(label: string, invocation: Invocation) {
@@ -87,23 +89,25 @@ export function useTransaction(config: AppConfig) {
     setMessage(null);
     setCompleted(null);
     let saved: Pending | null = null;
+    // The account that signs. The user can switch before the receipt arrives.
+    const savedKey = key;
     try {
       if (toBase58(client.network.networkHash) !== config.networkId)
         throw new Error("Select the application's network.");
       const result = await execute.mutateAsync({
-        request: { invocation, gasLimit: GAS },
+        request: { invocation, gasLimit: GAS, expiryBlocks: EXPIRY_BLOCKS },
         options: {
           wait: { timeoutMs: 20_000, pollingIntervalMs: 500 },
           onSigned: ({ hash, signedTransaction }) => {
             const { block_expiry_height } =
               parseSignedTransactionHex(signedTransaction).tx.uniquifier;
             saved = { label, hash, expiresAt: String(block_expiry_height) };
-            savePending(key, saved);
+            savePending(savedKey, saved);
             setPending(saved);
           },
         },
       });
-      if (saved) finish(saved, result.receipt);
+      if (saved) finish(savedKey, saved, result.receipt);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -112,33 +116,29 @@ export function useTransaction(config: AppConfig) {
     }
   }
 
-  /**
-   * Look the saved hash up. Never sends anything.
-   *
-   * Read the tip first. The transaction cannot commit after `expiresAt`, so if
-   * the tip is past it and the node then reports no commitment, it never will.
-   * Read in the other order, a commit between the two reads looks like expiry.
-   * The status reports a recent commit before its receipt is indexed; the
-   * receipt covers an older one.
-   */
+  /** Look the saved hash up. Never sends anything. */
   async function checkAgain() {
     if (!pending) return;
     setMessage(null);
     try {
-      const transactionHash = hashFromBase58(pending.hash);
-      const tip = await client.getChainTip();
-      const status = await client.getTransactionStatus({ transactionHash });
-      const committed =
-        ("status" in status && status.status === "committed") ||
-        (await client.getTransactionReceipt({ transactionHash })) !== null;
-      if (!committed && tip.blockHeight > BigInt(pending.expiresAt)) {
-        forget();
+      const expiresAt = BigInt(pending.expiresAt);
+      const outcome = await readSavedOutcome(client, pending.hash, expiresAt);
+      if (outcome === "observe") {
+        await receipt.refetch();
+        return;
+      }
+      if (outcome === "notIndexed") {
         setMessage(
-          `${pending.label} expired without committing (${pending.hash}). You can send it again.`,
+          `The node has not indexed block ${expiresAt} yet, so it cannot tell whether ${pending.label} committed. Check again shortly.`,
         );
         return;
       }
-      await receipt.refetch();
+      forget(key, pending);
+      setMessage(
+        outcome === "expired"
+          ? `${pending.label} expired without committing (${pending.hash}). You can send it again.`
+          : `The node no longer keeps the blocks that could hold ${pending.label} (${pending.hash}). Look it up in an explorer before you send it again.`,
+      );
     } catch (error) {
       setMessage(errorMessage(error));
     }
