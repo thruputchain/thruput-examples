@@ -33,6 +33,7 @@ it("saves each event once, newest first, and pages through them", () => {
   for (const n of [1, 2, 3]) store.saveToken(token(n), 0);
   // Replaying a block saves the same event identity again.
   store.saveToken(token(3), 0);
+  store.saveCheckpoint(3n);
   const first = store.listTokens({ limit: 2, offset: 0 });
   expect(first.tokens.map((t) => t.address)).toEqual(["token-3", "token-2"]);
   expect(first.hasMore).toBe(true);
@@ -42,6 +43,7 @@ it("saves each event once, newest first, and pages through them", () => {
 it("searches by name, symbol, or address, and filters by creator", () => {
   store.saveToken(token(1, "alice"), 0);
   store.saveToken(token(2, "bob"), 0);
+  store.saveCheckpoint(2n);
   const ids = (query: Parameters<TokenStore["listTokens"]>[0]) =>
     store.listTokens(query).tokens.map((t) => t.address);
   expect(ids({ q: "T2", limit: 10, offset: 0 })).toEqual(["token-2"]);
@@ -58,6 +60,7 @@ it("keeps the checkpoint", () => {
 it("matches % and _ in a search literally", () => {
   store.saveToken(token(1), 0);
   store.saveToken({ ...token(2), name: "100% Token", symbol: "P_C" }, 0);
+  store.saveCheckpoint(2n);
   const ids = (q: string) =>
     store.listTokens({ q, limit: 10, offset: 0 }).tokens.map((t) => t.address);
   expect(ids("_")).toEqual(["token-2"]);
@@ -103,4 +106,16 @@ it("lists only fully indexed blocks, so a block split across RPC pages cannot sh
   const page = store.listTokens({ limit: 10, offset: 0 });
   expect(page.asOfBlock).toBe("2");
   expect(page.tokens.map((t) => t.address)).toEqual(["token-2", "token-1"]);
+});
+
+it("lists nothing until the indexer's first pass completes", () => {
+  // The first pass has saved some tokens, but not its checkpoint yet.
+  for (const n of [1, 2]) store.saveToken(token(n), 0);
+  expect(store.listTokens({ limit: 10, offset: 0 })).toEqual({
+    tokens: [],
+    hasMore: false,
+    asOfBlock: null,
+  });
+  store.saveCheckpoint(2n);
+  expect(store.listTokens({ limit: 10, offset: 0 }).tokens).toHaveLength(2);
 });

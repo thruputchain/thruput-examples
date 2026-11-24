@@ -133,16 +133,16 @@ export class TokenStore {
     asOfBlock: string | null;
   } {
     // Stop at the checkpoint: every block up to it is fully indexed, while a
-    // later block can still be gaining tokens from the next RPC page.
+    // later block can still be gaining tokens from the next RPC page. Before
+    // the first pass completes there is no checkpoint, so nothing is listed.
     const checkpoint = this.loadCheckpoint();
-    const asOfBlock =
-      query.asOfBlock ?? (checkpoint === undefined ? null : Number(checkpoint));
+    if (checkpoint === undefined && query.asOfBlock === undefined)
+      return { tokens: [], hasMore: false, asOfBlock: null };
+    const asOfBlock = query.asOfBlock ?? Number(checkpoint);
     const conditions: string[] = [];
     const values: (string | number)[] = [];
-    if (asOfBlock !== null) {
-      conditions.push("block_height <= ?");
-      values.push(asOfBlock);
-    }
+    conditions.push("block_height <= ?");
+    values.push(asOfBlock);
     if (query.q) {
       // Match `%` and `_` in the query literally, not as wildcards.
       const pattern = `%${query.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -175,7 +175,7 @@ export class TokenStore {
         transactionHash: String(row.transaction_hash),
       })),
       hasMore: rows.length > query.limit,
-      asOfBlock: asOfBlock === null ? null : String(asOfBlock),
+      asOfBlock: String(asOfBlock),
     };
   }
 
