@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   fundingAmount: 500n,
   key: "",
+  completed: null as unknown,
 }));
 vi.mock("@thruputchain/react", () => ({ useClient: () => ({}) }));
 vi.mock("@/contracts/launchpad-client", () => ({
@@ -32,7 +33,7 @@ vi.mock("@/transactions/use-wallet-transaction", () => ({
     return {
       send: mocks.send,
       blocked: false,
-      completed: null,
+      completed: mocks.completed,
       message: null,
       reset: () => {},
     };
@@ -80,4 +81,21 @@ it("keys the saved launch by factory, so another deployment does not load it", a
   const config = configuration();
   expect(mocks.key).toContain(toBase58(config.factoryAddress));
   expect(mocks.key).toContain(toBase58(config.accountAddress));
+});
+
+it("reports a failed launch after a reload, when there is no review", () => {
+  const hash = new Uint8Array(32).fill(4);
+  mocks.completed = {
+    succeeded: false,
+    label: "Launch token",
+    context: { address: toBase58(predicted), name: "Acorn", symbol: "ACRN" },
+    receipt: { transactionHash: hash },
+  };
+  try {
+    const { result } = renderHook(() => useLaunch(configuration()));
+    expect(result.current.review).toBeNull();
+    expect(result.current.failed).toEqual({ symbol: "ACRN", hash: toBase58(hash) });
+  } finally {
+    mocks.completed = null;
+  }
 });
