@@ -238,6 +238,27 @@ fn removed_draft_slots_cannot_be_read_or_voted_on() {
 }
 
 #[test]
+fn indexes_past_the_limits_are_refused_by_the_storage_arrays() {
+    let f = Fixture::new();
+    f.call(f.voter, |c| {
+        // Inside the limits, a slot nobody has written reads as empty.
+        assert_eq!(c.tally(0, MAX_QUESTIONS - 1, MAX_OPTIONS - 1), 0);
+        assert_eq!(c.answer(0, &f.voter, MAX_QUESTIONS - 1), None);
+        // Past them there is no slot to read: the array refuses the index.
+        for refused in [
+            c.try_tally(0, MAX_QUESTIONS, 0).unwrap_err(),
+            c.try_tally(0, 0, MAX_OPTIONS).unwrap_err(),
+            c.try_answer(0, &f.voter, MAX_QUESTIONS).unwrap_err(),
+        ] {
+            assert!(matches!(
+                refused.try_as::<exn::LibraryExn>(),
+                Some(exn::LibraryExn::StorageIndexOutOfBounds { .. })
+            ));
+        }
+    });
+}
+
+#[test]
 fn oversized_question_vectors_fail_at_the_abi_boundary() {
     let f = Fixture::new();
     f.call(f.admin, |c| {

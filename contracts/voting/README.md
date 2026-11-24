@@ -1,8 +1,8 @@
 # Voting
 
 A multi-question poll contract that demonstrates caller authorization, typed
-storage, exclusive writes, and mergeable `Balance` totals. Start with
-[Counter](../counter/README.md), then read
+storage, fixed-length `Array`s, exclusive writes, and mergeable `Balance`
+totals. Start with [Counter](../counter/README.md), then read
 [`src/implementation.rs`](src/implementation.rs) and
 [`tests/test.rs`](tests/test.rs).
 
@@ -15,7 +15,7 @@ cargo test -p voting --locked
 thruput build -p voting
 ```
 
-Expected: eight native tests pass. The build creates
+Expected: nine native tests pass. The build creates
 `target/thruput/voting.rv32a` and its contract specification. The
 [Voting app](../../apps/voting/README.md) includes localnode tests against that
 RV32 artifact, including the largest allowed poll.
@@ -42,9 +42,14 @@ zero questions.
 | --- | --- | --- |
 | Poll ID allocation | `NNInt` | Creation deliberately serializes ID assignment |
 | Header, question titles, options | `Map` and `Value` | Small typed entries fit the localnode's 1 KiB value limit |
+| Per-question and per-option slots | `Array` inside `Map` | Polls and wallets are open-ended keys; questions and options are indexes below a fixed limit |
 | Answer per poll, wallet, question | `Value<u32>` with `set_exclusive` | Concurrent duplicate submissions cannot both commit |
 | First participation per poll and wallet | Exclusive `Value<bool>` | Count a wallet once across all questions |
 | Option and participant totals | `Balance` | Missing totals read as zero; different wallets' increases can merge |
+
+An `Array<S, N>` is laid out like a `Map<u32, S>`, but its length is part of its
+type: an index at or past `N` is refused without a storage read, an unset slot
+reads as missing, and the slots can be walked in order, as `get_question` does.
 
 Draft edits retain unused slots beyond the current counts. Reads and votes
 cannot access them. Later edits reuse these bounded slots. `get_poll` returns

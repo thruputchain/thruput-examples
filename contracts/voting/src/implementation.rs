@@ -1,12 +1,22 @@
 use alloc::vec::Vec;
-use thruput_sdk::storage::{Balance, Map, NNInt, Value};
+use thruput_sdk::storage::{Array, Balance, Map, NNInt, Value};
 use thruput_sdk::*;
 
 pub type Text = heapless::String<160>;
 pub type Description = heapless::String<512>;
 pub type OptionText = heapless::String<96>;
-pub type Options = VecM<OptionText, 6>;
-pub type Questions = VecM<Question, 8>;
+
+/// The most questions a poll can ask, and the most options a question can offer.
+pub const MAX_QUESTIONS: u32 = 8;
+pub const MAX_OPTIONS: u32 = 6;
+
+pub type Options = VecM<OptionText, MAX_OPTIONS>;
+pub type Questions = VecM<Question, MAX_QUESTIONS>;
+
+// The same limits as storage lengths: a poll has a slot for each question it could ask, and a
+// question one for each option it could offer.
+const QUESTIONS: usize = MAX_QUESTIONS as usize;
+const OPTIONS: usize = MAX_OPTIONS as usize;
 
 #[contract_type]
 #[derive(Clone, Debug)]
@@ -65,13 +75,16 @@ pub struct Voting {
     // Creation is deliberately serialized. Voting does not write this counter.
     poll_count: NNInt,
     polls: Map<u64, Value<PollHeader>>,
-    question_titles: Map<u64, Map<u32, Value<Text>>>,
-    option_counts: Map<u64, Map<u32, Value<u32>>>,
-    options: Map<u64, Map<u32, Map<u32, Value<OptionText>>>>,
-    answers: Map<u64, Map<ContractAddress, Map<u32, Value<u32>>>>,
+    // Polls and wallets are open-ended, so they are `Map` keys. Questions and options are
+    // numbered from zero up to a fixed limit, so they are `Array` indexes: the array checks an
+    // index against its length without reading storage, and stores nothing until a slot is set.
+    question_titles: Map<u64, Array<Value<Text>, QUESTIONS>>,
+    option_counts: Map<u64, Array<Value<u32>, QUESTIONS>>,
+    options: Map<u64, Array<Array<Value<OptionText>, OPTIONS>, QUESTIONS>>,
+    answers: Map<u64, Map<ContractAddress, Array<Value<u32>, QUESTIONS>>>,
     participants: Map<u64, Map<ContractAddress, Value<bool>>>,
     participant_counts: Map<u64, Balance>,
-    totals: Map<u64, Map<u32, Map<u32, Balance>>>,
+    totals: Map<u64, Array<Array<Balance, OPTIONS>, QUESTIONS>>,
 }
 
 impl Voting {
@@ -102,22 +115,23 @@ impl Voting {
             let index = index as u32;
             self.question_titles
                 .at_mut(&id)
-                .at_mut(&index)
+                .at_mut(index)
                 .set_exclusive(&question.title);
             self.option_counts
                 .at_mut(&id)
-                .at_mut(&index)
+                .at_mut(index)
                 .set_exclusive(&(question.options.len() as u32));
             for (option, text) in question.options.iter().enumerate() {
                 self.options
                     .at_mut(&id)
-                    .at_mut(&index)
-                    .at_mut(&(option as u32))
+                    .at_mut(index)
+                    .at_mut(option as u32)
                     .set_exclusive(text);
             }
         }
         // Old slots beyond the current counts are inaccessible and can be reused
-        // by later draft edits. At most 8 × 6 option slots exist per poll.
+        // by later draft edits. The arrays' lengths bound them: at most 8 × 6
+        // option slots exist per poll.
     }
 
     fn validate(definition: &Definition) {
@@ -184,7 +198,7 @@ impl Voting {
             VotingError::InvalidSelection,
         );
         ensure(
-            option < self.option_counts.at(&id).at(&question).get(),
+            option < self.option_counts.at(&id).at(question).get(),
             VotingError::InvalidSelection,
         );
         let voter = get_caller();
@@ -196,7 +210,7 @@ impl Voting {
         self.answers
             .at_mut(&id)
             .at_mut(&voter)
-            .at_mut(&question)
+            .at_mut(question)
             .set_exclusive(&option);
         if self
             .participants
@@ -215,8 +229,8 @@ impl Voting {
         // Different voters' increases can merge without replacing a shared tally.
         self.totals
             .at_mut(&id)
-            .at_mut(&question)
-            .at_mut(&option)
+            .at_mut(question)
+            .at_mut(option)
             .increase(1);
     }
 
@@ -233,12 +247,18 @@ impl Voting {
             question < self.header(id).question_count,
             VotingError::InvalidSelection,
         );
-        let mut options = Vec::new();
-        for option in 0..self.option_counts.at(&id).at(&question).get() {
-            options.push(self.options.at(&id).at(&question).at(&option).get());
-        }
+        // An array can be walked, which a map cannot: take the slots in use, in order.
+        let in_use = self.option_counts.at(&id).at(question).get() as usize;
+        let options = self
+            .options
+            .at(&id)
+            .at(question)
+            .iter()
+            .take(in_use)
+            .map(|option| option.get())
+            .collect::<Vec<_>>();
         Question {
-            title: self.question_titles.at(&id).at(&question).get(),
+            title: self.question_titles.at(&id).at(question).get(),
             options: VecM(options),
         }
     }
@@ -247,13 +267,13 @@ impl Voting {
         self.answers
             .at(&id)
             .at(voter)
-            .at(&question)
+            .at(question)
             .try_get()
             .none_if_missing()
     }
 
     pub fn tally(&self, id: u64, question: u32, option: u32) -> i128 {
-        self.totals.at(&id).at(&question).at(&option).get()
+        self.totals.at(&id).at(question).at(option).get()
     }
 
     pub fn participant_count(&self, id: u64) -> i128 {

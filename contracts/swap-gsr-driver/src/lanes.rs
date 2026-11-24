@@ -98,8 +98,9 @@ const fn budget<P: LanePicker<N>, const N: usize>(per_request: u64, batch_size: 
 /// The lanes share one capacity, so that is at most the ceiling.
 #[derive(Storage)]
 pub struct LanedQueue<R: BatchRequest, const N: usize> {
-    // The entries, one queue per lane, which concurrent transactions insert into.
-    lanes: Map<u32, RCQ<Stamped<R>>>,
+    // The entries, one queue per lane, which concurrent transactions insert into. The number of
+    // lanes is fixed, so they are an `Array`: it refuses a lane that is not one of the `N`.
+    lanes: Array<RCQ<Stamped<R>>, N>,
 
     // The remaining capacity across all lanes; see `batch_driver::Queue`.
     slots: CapacityConstraint,
@@ -135,14 +136,12 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
     /// Accept one entry into `lane`, returning the id stamped on it; see
     /// `batch_driver::Queue::enqueue`.
     pub fn enqueue(&mut self, lane: usize, stamp: impl FnOnce(SHA256Hash) -> R) -> SHA256Hash {
-        assert!(lane < N, "no such lane");
-
         // As in `Queue::enqueue`: not checked here, so that an enqueue arriving at a full queue
         // fails at commit, with nothing written.
         self.slots.consume_capacity(1);
 
         let id = self.ids.next_id();
-        self.lanes.at_mut(&(lane as u32)).insert(&Stamped {
+        self.lanes.at_mut(lane as u32).insert(&Stamped {
             height: get_block_height().into_inner(),
             request: stamp(id),
         });
@@ -241,7 +240,7 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
 
             let request = self
                 .lanes
-                .at_mut(&(lane as u32))
+                .at_mut(lane as u32)
                 .try_consume()
                 .none_if_missing()
                 .expect("a lane found waiting holds a request")
@@ -318,7 +317,7 @@ impl<R: BatchRequest, const N: usize> LanedQueue<R, N> {
     // (Within a lane heights only rise, so if the head is of this block, so is all the lane.)
     fn head(&self, lane: usize, now: i64) -> Option<i64> {
         self.lanes
-            .at(&(lane as u32))
+            .at(lane as u32)
             .try_peek()
             .none_if_missing()
             .map(|head| head.height)
