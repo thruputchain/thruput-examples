@@ -14,6 +14,8 @@ const reads = new Set([
   "getEvents",
   "getTransactionReceipt",
   "getTransactionStatus",
+  "getTransactionsByBlock",
+  "getTransactionsByRootAddress",
   "simulateInvocation",
   "simulateInvocations",
 ]);
