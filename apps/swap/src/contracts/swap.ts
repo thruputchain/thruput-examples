@@ -173,13 +173,17 @@ export async function readPool(
 export async function readPoolPage(
   reader: Reader,
   page: number,
+  /**
+   * The pool count the first page saw. The list only grows and keeps each
+   * pair's index, so counting later pages from it stops new pools shifting
+   * them. Omit it for the first page.
+   */
+  asOfTotal?: bigint,
 ): Promise<{ total: bigint; pairs: (readonly ContractAddress[])[] }> {
   const { client, factory, caller } = reader;
-  const { value: total } = await SwapFactory.v0_1.allPairsLength.view({
-    client,
-    address: factory,
-    caller,
-  });
+  const total =
+    asOfTotal ??
+    (await SwapFactory.v0_1.allPairsLength.view({ client, address: factory, caller })).value;
   const end = total - BigInt(page) * PAGE_SIZE;
   const count = end <= 0n ? 0n : end < PAGE_SIZE ? end : PAGE_SIZE;
   if (count === 0n) return { total, pairs: [] };

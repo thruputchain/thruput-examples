@@ -3,8 +3,9 @@ import { contractAddress } from "@thruputchain/protocol";
 import { afterEach, expect, it, vi } from "vitest";
 import { ERC20Metadata } from "@/contracts/generated/erc20";
 import { batch_driver } from "@/contracts/generated/swap-driver";
+import { SwapFactory } from "@/contracts/generated/swap-factory";
 import { swap_if } from "@/contracts/generated/swap-handler";
-import { findRequestOutcome, readToken, sortTokens } from "./swap";
+import { findRequestOutcome, readPoolPage, readToken, sortTokens } from "./swap";
 
 const address = (byte: number) => contractAddress(new Uint8Array(32).fill(byte));
 const pool = { driver: address(1), handler: address(2) };
@@ -102,4 +103,21 @@ it("reads missing decimals as the fallback, as for a pool's LP token", async () 
   const reader = { client: {}, factory: address(4), caller: address(5) } as never;
   expect((await readToken(reader, address(6))).decimals).toBe(0);
   expect((await readToken(reader, address(6), 6)).decimals).toBe(6);
+});
+
+it("counts an older page from the total the first page saw", async () => {
+  // The factory now has 30 pools; the visitor's first page saw 25.
+  const length = vi.spyOn(SwapFactory.v0_1.allPairsLength, "view").mockResolvedValue({ value: 30n } as never);
+  const readViews = vi.fn(async ({ calls }: { calls: unknown[] }) => ({
+    results: calls.map(() => ({ kind: "return", value: [address(1), address(2)] })),
+  }));
+  const reader = { client: { readViews }, factory: address(4), caller: address(5) } as never;
+  const pairAt = vi.spyOn(SwapFactory.v0_1.pairAt, "viewRequest");
+  const page = await readPoolPage(reader, 1, 25n);
+  expect(length).not.toHaveBeenCalled();
+  expect(page.total).toBe(25n);
+  // 12 per page, counted from 25: the second page is pairs 12 down to 1.
+  // Counted from 30, it would start at 17 and repeat the first page's last pool.
+  const indexes = pairAt.mock.calls.map(([request]) => (request as { args: { index: bigint } }).args.index);
+  expect(indexes).toEqual(Array.from({ length: 12 }, (_, i) => 12n - BigInt(i)));
 });

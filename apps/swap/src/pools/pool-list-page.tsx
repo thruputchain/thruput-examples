@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { toBase58 } from "@thruputchain/client";
@@ -33,10 +33,14 @@ export function PoolListPage({ config }: { config: AppConfig }) {
   const { reader } = useReader(config);
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState("");
+  // The pool count the first page saw. Older pages count from it, so a pool
+  // created while the visitor browses does not shift them.
+  const [firstTotal, setFirstTotal] = useState<bigint | null>(null);
+  const asOfTotal = page > 0 && firstTotal !== null ? firstTotal : undefined;
   const pools = useQuery({
-    queryKey: ["pools", page],
+    queryKey: ["pools", page, asOfTotal?.toString()],
     queryFn: async () => {
-      const { total, pairs } = await readPoolPage(reader, page);
+      const { total, pairs } = await readPoolPage(reader, page, asOfTotal);
       const rows = await Promise.all(
         pairs.map(async ([token0, token1]) => {
           // Any contract can be a pool token. One without the metadata views
@@ -52,6 +56,10 @@ export function PoolListPage({ config }: { config: AppConfig }) {
     placeholderData: keepPreviousData,
     refetchInterval: 10_000,
   });
+  useEffect(() => {
+    if (page === 0 && pools.data && !pools.isPlaceholderData)
+      setFirstTotal(pools.data.total);
+  }, [page, pools.data, pools.isPlaceholderData]);
   const text = filter.trim().toLowerCase();
   const rows = (pools.data?.rows ?? []).filter(
     ({ token0, token1 }) =>
