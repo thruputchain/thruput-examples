@@ -284,7 +284,7 @@ impl Speedex {
             .at(id)
             .try_get()
             .none_if_missing()
-            .unwrap_or_else(|| throw(SpeedexError::NoSuchOffer))
+            .or_throw(SpeedexError::NoSuchOffer)
     }
 }
 
@@ -362,7 +362,7 @@ impl Speedex {
         let grid = Self::grid(&cfg);
         let level = grid
             .level_for(min_price)
-            .unwrap_or_else(|| throw(SpeedexError::InvalidPrice));
+            .or_throw(SpeedexError::InvalidPrice);
 
         let owner = get_caller();
         Self::token(&cfg, sell).transfer_from(&owner, &get_current_address(), amount as i128);
@@ -601,7 +601,7 @@ impl Speedex {
             .at(&offer.batch)
             .try_get()
             .none_if_missing()
-            .unwrap_or_else(|| throw(SpeedexError::NotCleared));
+            .or_throw(SpeedexError::NotCleared);
 
         let book = engine::book(offer.sell as usize, offer.buy as usize) as u32;
         let traded = self
@@ -672,7 +672,7 @@ impl Speedex {
     pub fn level_for(&self, min_price: Price) -> u32 {
         Self::grid(&self.cfg())
             .level_for(min_price)
-            .unwrap_or_else(|| throw(SpeedexError::InvalidPrice))
+            .or_throw(SpeedexError::InvalidPrice)
     }
 
     /// The limit ratio (Q32) of a grid level.

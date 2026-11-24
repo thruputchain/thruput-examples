@@ -58,7 +58,7 @@ impl TokenContract {
             if mint.supply != 0 {
                 self.total_supply
                     .try_increase(mint.supply)
-                    .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+                    .or_throw(ERC20Error::TooLarge);
                 MintEvent::new(mint.holder, mint.supply).log();
             }
         }
@@ -82,19 +82,17 @@ impl TokenContract {
     fn lazy_increase(value: &mut Balance, amount: Amount) {
         value
             .try_lazy_increase(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     fn decrease(value: &mut Balance, amount: Amount) {
-        value
-            .try_decrease(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        value.try_decrease(amount).or_throw(ERC20Error::TooLarge);
     }
 
     fn increase_supply(&mut self, amount: Amount) {
         self.total_supply
             .try_increase(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     fn balance_of(&self, owner: &ContractAddress) -> Amount {
@@ -113,12 +111,10 @@ impl TokenContract {
             allowance.try_increase(difference)
         } else {
             // `i128::MIN` has no negation; no allowance could cover it either.
-            let decrement = difference
-                .checked_neg()
-                .unwrap_or_else(|| throw(ERC20Error::TooLarge));
+            let decrement = difference.checked_neg().or_throw(ERC20Error::TooLarge);
             allowance.try_decrease(decrement)
         };
-        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        result.or_throw(ERC20Error::TooLarge);
     }
 
     // Adjust `spender`'s allowance from `owner` by `difference`.

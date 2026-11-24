@@ -71,7 +71,7 @@ pub struct Starved;
 ///     fn initialize(&mut self, handler: &Address, capacity: u32, min_batch: u32) {
 ///         self.queue
 ///             .initialize(CrankPolicy { capacity, min_batch })
-///             .unwrap_or_else(|_: InvalidPolicy| throw(MyError::InvalidConfiguration));
+///             .or_throw(MyError::InvalidConfiguration);
 ///
 ///         self.cfg.set_exclusive(&Cfg { handler: *handler });
 ///     }
@@ -93,7 +93,7 @@ pub struct Starved;
 ///                         .try_handle(request)
 ///                 },
 ///             )
-///             .unwrap_or_else(|_: Starved| throw(MyError::BatchTooSmall))
+///             .or_throw(MyError::BatchTooSmall)
 ///     }
 /// }
 /// ```
@@ -130,7 +130,7 @@ impl<R: BatchRequest> Queue<R> {
     ///     }
     ///     self.queue
     ///         .initialize(CrankPolicy { capacity, min_batch })
-    ///         .unwrap_or_else(|_: InvalidPolicy| throw(MyError::InvalidConfiguration));
+    ///         .or_throw(MyError::InvalidConfiguration);
     /// }
     /// ```
     pub fn initialize(&mut self, policy: CrankPolicy) -> Result<(), InvalidPolicy> {

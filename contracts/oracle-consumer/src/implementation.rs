@@ -35,7 +35,7 @@ impl OracleConsumer {
         // Use source time, not the time at which the relay published the price.
         let age = now
             .checked_sub(observation.timestamp)
-            .unwrap_or_else(|| throw(ConsumerError::FutureObservation));
+            .or_throw(ConsumerError::FutureObservation);
         ensure(age <= max_age_seconds, ConsumerError::StaleObservation);
         observation
     }
@@ -56,6 +56,6 @@ impl OracleConsumer {
             observation.price as u128,
             10_u128.pow(amount_decimals),
         )
-        .unwrap_or_else(|| throw(ConsumerError::Overflow))
+        .or_throw(ConsumerError::Overflow)
     }
 }

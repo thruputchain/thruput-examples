@@ -80,7 +80,7 @@ impl Voting {
             .at(&id)
             .try_get()
             .none_if_missing()
-            .unwrap_or_else(|| throw(VotingError::NotFound))
+            .or_throw(VotingError::NotFound)
     }
 
     fn require_admin(&self, id: u64, status: Status) -> PollHeader {
