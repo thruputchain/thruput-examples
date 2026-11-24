@@ -108,6 +108,21 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let signatures = 0;
+  // Broadcasts to let through before the wallet holds one; null holds none.
+  let passBeforeHold: number | null = null;
+  let held: { signedTransaction: string; release: () => void } | null = null;
+  let onHeld: (() => void) | null = null;
+  async function broadcast(signedTransaction: string) {
+    return toBase58(
+      (
+        await client.sendTransaction({
+          signedTransaction: serializeSignedTransaction(
+            parseSignedTransactionHex(signedTransaction),
+          ),
+        })
+      ).transactionHash,
+    );
+  }
   await page.exposeFunction("testWalletRequest", async (input: unknown) => {
     const request = parseProviderRequest(input);
     if (request.method === "signTransaction") {
@@ -122,18 +137,18 @@ try {
         hash: toBase58(hashSignedTransaction(signed)),
       };
     }
-    if (request.method === "submitTransaction")
-      return {
-        hash: toBase58(
-          (
-            await client.sendTransaction({
-              signedTransaction: serializeSignedTransaction(
-                parseSignedTransactionHex(request.params.signedTransaction),
-              ),
-            })
-          ).transactionHash,
-        ),
-      };
+    if (request.method === "submitTransaction") {
+      const { signedTransaction } = request.params;
+      if (passBeforeHold !== null && passBeforeHold-- === 0) {
+        passBeforeHold = null;
+        // Hold this broadcast until the test releases it.
+        await new Promise<void>((release) => {
+          held = { signedTransaction, release };
+          onHeld?.();
+        });
+      }
+      return { hash: await broadcast(signedTransaction) };
+    }
     throw new Error("Unexpected wallet request");
   });
   // A wallet that, like Thruput Freighter, supports atomic batches.
@@ -204,18 +219,26 @@ try {
   await page.getByRole("button", { name: "Swap", exact: true }).click();
   await done(page, /^Swap .+: done$/);
 
-  // 4. Add liquidity, and reload while the request is queued.
+  // 4. Add liquidity, and reload while the request is queued: the wallet
+  // broadcasts the request, then holds the crank's broadcast.
   await page.getByRole("button", { name: "Dismiss" }).click();
   await page.getByRole("radio", { name: "Add liquidity" }).click();
   await page.getByLabel(/to add$/).fill("5");
+  passBeforeHold = 1;
+  const crankHeld = new Promise<void>((resolve) => (onHeld = resolve));
   await page.getByRole("button", { name: "Add liquidity", exact: true }).last().click();
-  await page.getByText(/^Add liquidity: (queued|done)$/).waitFor({ timeout: 60_000 });
+  await crankHeld;
   const beforeReload = signatures;
   await page.reload();
   // The saved request belongs to the account, so it loads after reconnecting.
   await connect(page);
+  await page.getByText("Process the queue").first().waitFor({ timeout: 60_000 });
+  // The crank the wallet was sending reaches the node after the reload.
+  const crank = held!;
+  held = null;
+  crank.release();
   await done(page, /^Add liquidity: done$/);
-  assert.ok(signatures - beforeReload <= 1, "A reload never signs a new request");
+  assert.equal(signatures, beforeReload, "A reload never signs a new request");
 
   // 5. Remove all liquidity.
   await page.getByRole("button", { name: "Dismiss" }).click();

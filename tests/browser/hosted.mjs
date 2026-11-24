@@ -9,7 +9,7 @@ import { chromium } from "playwright-core";
 import { OwnedProcessGroups } from "../e2e/helpers/process-groups.mjs";
 import { hashFromBase58 } from "@thruputchain/client";
 import { parseStandardTokenArtifact } from "../../apps/token-launchpad/src/contracts/token-artifact.ts";
-import { parsePoolTokenArtifact } from "../../apps/swap/src/transactions/pool-token-artifact.ts";
+import { parsePoolTokenArtifact } from "../../apps/swap/src/contracts/pool-token-artifact.ts";
 
 // Run after setup:local. This checks real production servers and the same Caddy
 // routes used on Railway. It does not deploy contracts or submit transactions.
