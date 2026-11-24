@@ -18,6 +18,17 @@ version = "1.53.3"
 crate = "heapless"
 version = "0.9.4"
 
+# Security fix for RUSTSEC-2026-0592 (stack overflow in url's `Url::origin()` on nested
+# `blob:` URLs, fixed in url 2.5.9, which needs form_urlencoded 1.2.3 from the same release).
+# Remove once both are past the cooldown (2026-11-29).
+[[allow.exact]]
+crate = "url"
+version = "2.5.9"
+
+[[allow.exact]]
+crate = "form_urlencoded"
+version = "1.2.3"
+
 # Required by the thruput-tools 0.47.0 crates (jsonrpsee ^0.26.2), which pin
 # hog-devnode 0.1.36. Remove once 0.26.2 is past the cooldown (2026-11-26).
 [[allow.exact]]
