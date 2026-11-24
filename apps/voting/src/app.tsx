@@ -92,7 +92,7 @@ export function App({ config }: { config: AppConfig }) {
   );
 }
 
-function CreatePoll({
+export function CreatePoll({
   config,
   transaction: tx,
 }: {
@@ -101,14 +101,13 @@ function CreatePoll({
 }) {
   const wallet = useWallet();
   const navigate = useNavigate();
-  // Only a poll confirmed while this page is open moves on to Manage polls.
-  // A confirmation from an earlier visit is just cleared.
-  const confirmedBefore = useRef(tx.completed === "Create poll");
+  // Only a poll sent from this page moves on to Manage polls. A confirmation
+  // from an earlier visit is just cleared.
+  const sentHere = useRef(false);
   useEffect(() => {
     if (tx.completed !== "Create poll") return;
     tx.dismissConfirmation();
-    if (confirmedBefore.current) confirmedBefore.current = false;
-    else navigate("/admin");
+    if (sentHere.current) navigate("/admin");
   }, [tx.completed, navigate]);
   return (
     <>
@@ -133,12 +132,13 @@ function CreatePoll({
           questions: [{ title: "", options: ["", ""] }],
         }}
         disabled={wallet.status !== "connected" || tx.blocked}
-        onSave={(definition) =>
-          tx.send(
+        onSave={(definition) => {
+          sentHere.current = true;
+          return tx.send(
             "Create poll",
             methods.createPoll.invocation(config.address, GAS, { definition }),
-          )
-        }
+          );
+        }}
       />
     </>
   );
