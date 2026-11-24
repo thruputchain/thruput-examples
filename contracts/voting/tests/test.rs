@@ -238,6 +238,54 @@ fn removed_draft_slots_cannot_be_read_or_voted_on() {
 }
 
 #[test]
+fn a_poll_at_the_limits_fills_every_slot_in_order() {
+    let f = Fixture::new();
+    let title = |question: u32| format!("Question {question}");
+    let options = |question: u32| -> Vec<OptionText> {
+        (0..MAX_OPTIONS)
+            .map(|option| {
+                format!("Question {question}, option {option}")
+                    .as_str()
+                    .try_into()
+                    .unwrap()
+            })
+            .collect()
+    };
+    let full = Definition {
+        title: "Every slot".try_into().unwrap(),
+        description: Description::new(),
+        questions: VecM(
+            (0..MAX_QUESTIONS)
+                .map(|question| Question {
+                    title: title(question).as_str().try_into().unwrap(),
+                    options: VecM(options(question)),
+                })
+                .collect(),
+        ),
+    };
+    let (last_question, last_option) = (MAX_QUESTIONS - 1, MAX_OPTIONS - 1);
+    f.call(f.admin, |c| {
+        assert_eq!(c.create_poll(full), 1);
+        // Every question comes back from its own slot, with its options in the order given.
+        for question in 0..MAX_QUESTIONS {
+            let read = c.get_question(1, question);
+            assert_eq!(read.title.as_str(), title(question));
+            assert_eq!(read.options.0, options(question));
+        }
+        c.open_poll(1);
+    });
+    f.call(f.voter, |c| {
+        c.vote(1, last_question, last_option);
+        assert_eq!(c.answer(1, &f.voter, last_question), Some(last_option));
+        assert_eq!(c.tally(1, last_question, last_option), 1);
+        // The vote landed in the last slot and no other.
+        assert_eq!(c.tally(1, last_question, last_option - 1), 0);
+        assert_eq!(c.tally(1, last_question - 1, last_option), 0);
+        assert_eq!(c.tally(0, 0, 0), 0);
+    });
+}
+
+#[test]
 fn indexes_past_the_limits_are_refused_by_the_storage_arrays() {
     let f = Fixture::new();
     f.call(f.voter, |c| {

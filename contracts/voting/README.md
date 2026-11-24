@@ -15,7 +15,7 @@ cargo test -p voting --locked
 thruput build -p voting
 ```
 
-Expected: nine native tests pass. The build creates
+Expected: ten native tests pass. The build creates
 `target/thruput/voting.rv32a` and its contract specification. The
 [Voting app](../../apps/voting/README.md) includes localnode tests against that
 RV32 artifact, including the largest allowed poll.
