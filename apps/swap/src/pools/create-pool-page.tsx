@@ -34,7 +34,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { typedAddress } from "@/lib/address";
 import { userErrorMessage } from "@/lib/errors";
-import { useQueuedRequest } from "@/transactions/use-queued-request";
+import { useSharedQueuedRequest } from "@/transactions/queued-request-provider";
 import { RequestStatus } from "./request-status";
 import { TokenField } from "./token-field";
 import { useReader } from "./use-pool";
@@ -57,7 +57,7 @@ interface Review {
 export function CreatePoolPage({ config }: { config: AppConfig }) {
   const [params] = useSearchParams();
   const { reader, account } = useReader(config);
-  const request = useQueuedRequest(config.networkId, account);
+  const request = useSharedQueuedRequest();
   const [tokenA, setTokenA] = useState(params.get("tokenA") ?? "");
   const [tokenB, setTokenB] = useState(params.get("tokenB") ?? "");
   const [amountA, setAmountA] = useState("");

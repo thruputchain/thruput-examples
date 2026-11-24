@@ -19,7 +19,7 @@ import { formatAmount } from "@/domain/amount";
 import { typedAddress } from "@/lib/address";
 import { userErrorMessage } from "@/lib/errors";
 import { addressFromBase58 } from "@thruputchain/client";
-import { useQueuedRequest } from "@/transactions/use-queued-request";
+import { useSharedQueuedRequest } from "@/transactions/queued-request-provider";
 import { AddLiquidityForm, RemoveLiquidityForm } from "./liquidity-forms";
 import { RequestStatus } from "./request-status";
 import { SwapForm } from "./swap-form";
@@ -39,7 +39,7 @@ export function PoolPage({ config }: { config: AppConfig }) {
     tokenB ? addressFromBase58(tokenB) : null,
   );
   const state = usePoolState(reader, pool.data);
-  const request = useQueuedRequest(config.networkId, account);
+  const request = useSharedQueuedRequest();
   const [tab, setTab] = useState<Tab>("swap");
 
   if (!tokenA || !tokenB || tokenA === tokenB)
