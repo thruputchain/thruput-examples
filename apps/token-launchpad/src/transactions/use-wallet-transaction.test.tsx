@@ -316,3 +316,45 @@ it("reports a transaction once, also when another copy of the hook reported it f
   await act(() => sent);
   expect(firstDone).not.toHaveBeenCalled();
 });
+
+it("lets the page on screen report a transaction that an unmounted copy sent", async () => {
+  const receipt = { execution: { result: "return" } } as TransactionReceipt;
+  let sign!: () => void;
+  let reply!: () => void;
+  const signing = new Promise<void>((done) => (sign = done));
+  const replied = new Promise<void>((done) => (reply = done));
+  mocks.executeCallsAndWait.mockImplementation(async (_request, options) => {
+    await signing;
+    await options.onSigned(signed);
+    await replied;
+    return { receipt };
+  });
+  const firstDone = vi.fn();
+  const first = renderHook(() => useWalletTransaction(key, firstDone));
+  let sent!: Promise<void>;
+  act(() => {
+    sent = first.result.current.send("Launch token", () => ({ calls: [call] }), {});
+  });
+  // The user switches accounts and back while the wallet is still signing.
+  first.unmount();
+  const secondDone = vi.fn();
+  const second = renderHook(() => useWalletTransaction(key, secondDone));
+  expect(second.result.current.pending).toBeNull();
+
+  // The old copy saves the record; the page on screen shows it.
+  await act(async () => sign());
+  await waitFor(() => expect(second.result.current.pending?.hash).toBe(signed.hash));
+
+  // The old copy's wallet call returns first. It is not on screen, so it
+  // leaves the record for the page that is.
+  reply();
+  await act(() => sent);
+  expect(firstDone).not.toHaveBeenCalled();
+  expect(localStorage.getItem(key)).not.toBeNull();
+
+  mocks.receipt = receipt;
+  second.rerender();
+  await waitFor(() => expect(secondDone).toHaveBeenCalledTimes(1));
+  expect(second.result.current.completed?.succeeded).toBe(true);
+  expect(localStorage.getItem(key)).toBeNull();
+});

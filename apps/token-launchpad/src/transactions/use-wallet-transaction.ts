@@ -10,6 +10,7 @@ import { walletGasLimit } from "@thruputchain/client/wallet";
 import { gasAmount, type Contract } from "@thruputchain/protocol";
 import { userErrorMessage } from "@/lib/errors";
 import { EXPIRY_BLOCKS, readSavedOutcome } from "./saved-outcome";
+import { readRecord, useRecord, writeRecord } from "./saved-record";
 
 /**
  * The record saved before the wallet broadcasts a transaction. The Voting app
@@ -32,19 +33,12 @@ export interface Completed<T> {
   succeeded: boolean;
 }
 
-function load<T>(key: string): Pending<T> | null {
-  try {
-    const saved = JSON.parse(localStorage.getItem(key) ?? "null") as Record<
-      string,
-      unknown
-    > | null;
-    const fields = ["label", "hash", "expiresAt"];
-    if (saved && fields.every((field) => typeof saved[field] === "string"))
-      return saved as unknown as Pending<T>;
-  } catch {
-    // Unreadable storage is treated as no saved transaction.
-  }
-  return null;
+function parsePending<T>(value: unknown): Pending<T> | null {
+  const saved = value as Record<string, unknown> | null;
+  const fields = ["label", "hash", "expiresAt"];
+  return saved && fields.every((field) => typeof saved[field] === "string")
+    ? (saved as unknown as Pending<T>)
+    : null;
 }
 
 /** The calls of one atomic batch, and any contract code it deploys. */
@@ -64,7 +58,8 @@ export function useWalletTransaction<T>(
 ) {
   const client = useClient();
   const walletClient = useWalletClient();
-  const [pending, setPending] = useState(() => load<T>(key));
+  // Read from storage, so every copy of this hook shows the same record.
+  const pending = useRecord(key, parsePending<T>);
   const [completed, setCompleted] = useState<Completed<T> | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,27 +77,31 @@ export function useWalletTransaction<T>(
     onDone,
   });
   done.current.onDone = onDone;
+  // Only the copy on screen reports a transaction. A copy unmounted by an
+  // account switch leaves the record, and the copy on screen reports it from
+  // its receipt.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /**
    * Clear one record, and only that record: a slow check must not clear a
    * transaction the user signed after it started.
    */
   function forget(saved: Pending<T>) {
-    if (load<T>(key)?.hash === saved.hash) localStorage.removeItem(key);
-    setPending((shown) => (shown?.hash === saved.hash ? null : shown));
+    if (parsePending<T>(readRecord(key))?.hash === saved.hash) writeRecord(key, null);
   }
 
-  // The same receipt can arrive from `send` and from the receipt query, and
-  // from another copy of this hook (the page remounts on an account switch).
-  // The saved record says it is not reported yet: whoever reports it first
-  // clears it, and a newer transaction replaces it.
+  // The same receipt can arrive from `send` and from the receipt query. The
+  // saved record says it is not reported yet: reporting clears it, and a
+  // newer transaction replaces it.
   function finish(saved: Pending<T>, transactionReceipt: TransactionReceipt) {
-    if (done.current.hash === saved.hash) return;
-    if (load<T>(key)?.hash !== saved.hash) {
-      done.current.hash = saved.hash;
-      setPending((shown) => (shown?.hash === saved.hash ? null : shown));
-      return;
-    }
+    if (!mounted.current || done.current.hash === saved.hash) return;
+    if (parsePending<T>(readRecord(key))?.hash !== saved.hash) return;
     const execution = transactionReceipt.execution;
     const result: Completed<T> = {
       label: saved.label,
@@ -171,8 +170,7 @@ export function useWalletTransaction<T>(
               expiresAt: String(block_expiry_height),
               context,
             };
-            localStorage.setItem(key, JSON.stringify(saved));
-            setPending(saved);
+            writeRecord(key, saved);
           },
           wait: { timeoutMs: 30_000, pollingIntervalMs: 500 },
         },
@@ -199,7 +197,7 @@ export function useWalletTransaction<T>(
       const expiresAt = BigInt(checked.expiresAt);
       const outcome = await readSavedOutcome(client, checked.hash, expiresAt);
       // The page may show another record by now: report only on this one.
-      if (load<T>(key)?.hash !== checked.hash) return;
+      if (parsePending<T>(readRecord(key))?.hash !== checked.hash) return;
       if (outcome === "observe") {
         await receipt.refetch();
       } else if (outcome === "notIndexed") {

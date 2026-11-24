@@ -16,8 +16,8 @@ production services: do not add hardening that hides the Thruput calls.
 - `examples/typescript/`: small runnable client scripts using published packages.
 - `apps/`: Counter, Voting, Airdrop, Token Launchpad, and Swap. Voting is the
   reference for the wallet transaction pattern; Launchpad and Swap copy it in
-  `src/transactions/use-wallet-transaction.ts`. All four wallet apps copy
-  `saved-outcome.ts`. Keep those copies identical.
+  `src/transactions/use-wallet-transaction.ts` and `saved-record.ts`. All four
+  wallet apps copy `saved-outcome.ts`. Keep those copies identical.
 - `apps/*/scripts/`: app setup and generation entrypoints.
 - `scripts/seed/`: shared app-seeding implementation, not a beginner example.
 - `scripts/`: repository-wide builds and checks; read `scripts/README.md`.

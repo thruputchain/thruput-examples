@@ -5,6 +5,7 @@ import { toBase58 } from "@thruputchain/client";
 import { contractAddress } from "@thruputchain/protocol";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { writeRecord } from "./saved-record";
 import { useQueuedRequest } from "./use-queued-request";
 
 const mocks = vi.hoisted(() => ({
@@ -191,4 +192,14 @@ it("lets the user forget a request whose outcome cannot be read", async () => {
   expect(result.current.queued).toBeNull();
   expect(result.current.busy).toBe(false);
   expect(localStorage.getItem(queuedKey)).toBeNull();
+});
+
+it("shows a request that another copy of the hook saved", async () => {
+  const { result } = renderHook(() => useQueuedRequest("net", account), {
+    wrapper,
+  });
+  expect(result.current.queued).toBeNull();
+  // For example, a copy unmounted by an account switch finished the request.
+  act(() => writeRecord(queuedKey, JSON.parse(saved("07"))));
+  expect(result.current.queued?.requestId).toBe(`0x${"07".repeat(32)}`);
 });

@@ -17,6 +17,7 @@ import {
   type RequestOutcome,
 } from "@/contracts/swap";
 import { userErrorMessage } from "@/lib/errors";
+import { readRecord, useRecord, writeRecord } from "./saved-record";
 import {
   useWalletTransaction,
   type WalletRequest,
@@ -51,13 +52,9 @@ export interface Finished {
   outcome: RequestOutcome;
 }
 
-function load(key: string): Queued | null {
-  try {
-    const saved = JSON.parse(localStorage.getItem(key) ?? "null") as Queued | null;
-    return saved && typeof saved.requestId === "string" ? saved : null;
-  } catch {
-    return null;
-  }
+function parseQueued(value: unknown): Queued | null {
+  const saved = value as Queued | null;
+  return saved && typeof saved.requestId === "string" ? saved : null;
 }
 
 /**
@@ -76,7 +73,9 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
   const queries = useQueryClient();
   const base = `swap:${networkId}:${toBase58(account)}`;
   const queuedKey = `${base}:queued`;
-  const [queued, setQueued] = useState(() => load(queuedKey));
+  // Read from storage, so the page on screen sees a request that a copy of
+  // this hook unmounted by an account switch saved.
+  const queued = useRecord(queuedKey, parseQueued);
   const [finished, setFinished] = useState<Finished | null>(null);
   const [error, setError] = useState<string | null>(null);
   // True after an outcome check fails: the user can then forget the request.
@@ -87,16 +86,14 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
   const [crankAsked, setCrankAsked] = useState<string | null>(null);
 
   function save(next: Queued | null) {
-    if (next) localStorage.setItem(queuedKey, JSON.stringify(next));
-    else localStorage.removeItem(queuedKey);
-    setQueued(next);
+    writeRecord(queuedKey, next);
     setUnreadable(false);
   }
 
   const tx = useWalletTransaction<Context>(`${base}:transaction`, (done) => {
     if (done.context.kind === "crank") {
       // Whatever its result, the crank was sent: do not send another on its own.
-      const current = load(queuedKey);
+      const current = parseQueued(readRecord(queuedKey));
       if (current && current.requestId === done.context.requestId)
         save({ ...current, cranked: true });
     }
@@ -141,7 +138,7 @@ export function useQueuedRequest(networkId: string, account: ContractAddress) {
         BigInt(request.fromBlock),
       );
       setUnreadable(false);
-      if (!outcome || load(queuedKey)?.requestId !== request.requestId) return;
+      if (!outcome || parseQueued(readRecord(queuedKey))?.requestId !== request.requestId) return;
       save(null);
       setFinished({ label: request.label, driver: request.driver, outcome });
       void queries.invalidateQueries();
