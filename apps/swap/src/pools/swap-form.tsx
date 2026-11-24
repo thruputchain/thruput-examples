@@ -11,7 +11,7 @@ import {
   type Reader,
 } from "@/contracts/swap";
 import { formatAmount, parseAmount } from "@/domain/amount";
-import { minimumAmountOut, quoteExactInput } from "@/domain/quote";
+import { minimumAmountOut, quoteWithinRange } from "@/domain/quote";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -46,12 +46,14 @@ export function SwapForm({
   const reserveOut = state.reserves[inputIndex === 0 ? 1 : 0];
   const parsed = parseAmount(amount, tokenIn.decimals);
   const amountIn = parsed.ok ? parsed.value : 0n;
-  const quote = amountIn > 0n ? quoteExactInput(amountIn, reserveIn, reserveOut) : null;
+  const quote = amountIn > 0n ? quoteWithinRange(amountIn, reserveIn, reserveOut) : null;
   const amountOutMin = quote ? minimumAmountOut(quote.amountOut, SLIPPAGE_BPS) : 0n;
   const problem =
     amount && !parsed.ok
       ? "Enter a valid amount."
-      : amountIn > state.balances[inputIndex]
+      : amountIn > 0n && quote === null
+        ? "The amount is too large for this pool."
+        : amountIn > state.balances[inputIndex]
         ? `Not enough ${tokenIn.symbol}.`
         : quote && amountOutMin === 0n
           ? "The amount is too small to swap."

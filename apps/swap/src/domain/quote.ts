@@ -16,6 +16,24 @@ export interface ExactInputQuote {
   priceImpactBps: bigint | null;
 }
 
+/**
+ * `quoteExactInput` for a form: null when the amount is too large for the
+ * contract's U256 arithmetic, so typing a huge number shows an input error
+ * instead of crashing the page.
+ */
+export function quoteWithinRange(
+  amountIn: bigint,
+  reserveIn: bigint,
+  reserveOut: bigint,
+): ExactInputQuote | null {
+  try {
+    return quoteExactInput(amountIn, reserveIn, reserveOut);
+  } catch (error) {
+    if (error instanceof QuoteArithmeticError) return null;
+    throw error;
+  }
+}
+
 export function quoteExactInput(
   amountIn: bigint,
   reserveIn: bigint,
