@@ -31,7 +31,6 @@ members = [
     "contracts/token-factory/*",
     "contracts/waitlist/*",
     "contracts/swap/bench/clvr-bench",
-    "sim-fixtures/*",
 ]
 
 [workspace.package]
