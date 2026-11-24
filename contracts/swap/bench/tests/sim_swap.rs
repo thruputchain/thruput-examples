@@ -138,7 +138,7 @@ struct Service {
 ///
 /// Participants record what they submit; the chain agent records what each
 /// block did with it. (The Swap app learns the same from receipts and from the
-/// pool's events: see `apps/swap/src/transactions/request-observer.ts`.)
+/// pool's events: see `apps/swap/src/transactions/use-queued-request.ts`.)
 #[derive(Debug, Default)]
 struct Ledger {
     // The last block produced.
