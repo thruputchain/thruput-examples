@@ -1,0 +1,31 @@
+[package]
+name = "pigment"
+version = "0.1.0"
+description = "Example shared canvas where strokes on one pixel in one block mix instead of conflicting"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "pigment"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc20-if = { workspace = true }
+
+[dev-dependencies]
+pigment = { path = ".", features = ["dev"] }
