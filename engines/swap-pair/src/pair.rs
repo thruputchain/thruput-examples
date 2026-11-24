@@ -22,12 +22,12 @@ use thruput_sdk::*;
 /// pair's arithmetic is in `u128`. A token reporting a negative amount is
 /// misbehaving, and that is reported as the token's own error.
 pub fn from_token(amount: i128) -> u128 {
-    u128::try_from(amount).unwrap_or_else(|_| throw(ERC20Error::NegativeAmount))
+    u128::try_from(amount).or_throw(ERC20Error::NegativeAmount)
 }
 
 /// The reverse: an amount above `i128::MAX` cannot be held by any token.
 pub fn to_token(amount: u128) -> i128 {
-    i128::try_from(amount).unwrap_or_else(|_| throw(ERC20Error::TooLarge))
+    i128::try_from(amount).or_throw(ERC20Error::TooLarge)
 }
 
 /// The pool's configuration: everything set once, at creation, and never

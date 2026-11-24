@@ -68,14 +68,14 @@ impl TokenContract {
         self.balances
             .at_mut(owner)
             .try_lazy_increase(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     fn _decrease_balance(&mut self, owner: &ContractAddress, amount: Amount) {
         self.balances
             .at_mut(owner)
             .try_decrease(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     // A missing entry -- never granted, or deleted -- reads as zero.
@@ -91,12 +91,10 @@ impl TokenContract {
             allowance.try_increase(difference)
         } else {
             // `i128::MIN` has no negation; no allowance could cover it either.
-            let decrement = difference
-                .checked_neg()
-                .unwrap_or_else(|| throw(ERC20Error::TooLarge));
+            let decrement = difference.checked_neg().or_throw(ERC20Error::TooLarge);
             allowance.try_decrease(decrement)
         };
-        result.unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        result.or_throw(ERC20Error::TooLarge);
     }
 
     // Adjust the allowance for `owner` and `spender` by `difference` and emit
@@ -126,7 +124,7 @@ impl TokenContract {
             .at_mut(owner)
             .at_mut(spender)
             .try_decrease(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     // Revoke `spender`'s allowance from `owner`, freeing its storage entry,
@@ -146,13 +144,13 @@ impl TokenContract {
     fn _increase_total_supply(&mut self, amount: Amount) {
         self.total_supply
             .try_increase(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     fn _decrease_total_supply(&mut self, amount: Amount) {
         self.total_supply
             .try_decrease(amount)
-            .unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+            .or_throw(ERC20Error::TooLarge);
     }
 
     fn _total_supply(&self) -> Amount {

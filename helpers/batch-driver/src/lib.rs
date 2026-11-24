@@ -23,7 +23,7 @@
 //!                     .try_handle_request(request)
 //!             },
 //!         )
-//!         .unwrap_or_else(|_| throw(MyError::BatchTooSmall))
+//!         .or_throw(MyError::BatchTooSmall)
 //! }
 //! ```
 //!

@@ -65,7 +65,7 @@ impl PermitRelayer {
         // decides nothing about authorization: the wallet still verifies the
         // signature over these same bytes before minting anything.
         let request: WalletRequest = thruput_sdk::xdr::cxs::decode(op.body.0.as_slice())
-            .unwrap_or_else(|_| throw(RelayError::NotAWalletRequest));
+            .or_throw(RelayError::NotAWalletRequest);
 
         let minted = SignedOpClient::new(wallet).execute_signed_op(op, signature);
         let token = ERC20PermitClient::new(token);

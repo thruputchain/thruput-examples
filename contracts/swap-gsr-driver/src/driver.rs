@@ -78,9 +78,7 @@ impl SwapDriver for Driver {
                 capacity: max_queue_len,
                 min_batch: min_crank_batch,
             })
-            .unwrap_or_else(|_: batch_driver::InvalidPolicy| {
-                throw(SwapDriverError::InvalidConfiguration)
-            });
+            .or_throw(SwapDriverError::InvalidConfiguration);
 
         // Ensure only one `initialize` call can succeed per block.
         self.cfg.set_exclusive(&Cfg {
@@ -118,6 +116,6 @@ impl SwapDriver for Driver {
                         .try_handle_request(request)
                 },
             )
-            .unwrap_or_else(|_: batch_driver::Starved| throw(SwapDriverError::BatchTooSmall))
+            .or_throw(SwapDriverError::BatchTooSmall)
     }
 }

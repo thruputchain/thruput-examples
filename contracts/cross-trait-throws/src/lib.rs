@@ -137,7 +137,7 @@ impl PausableLedger {
     /// The `Ledger` interface counts in `u128`; a `Balance` cell holds an
     /// `i128` and refuses anything above `i128::MAX` as too large.
     fn _cell_amount(amount: u128) -> i128 {
-        i128::try_from(amount).unwrap_or_else(|_| throw(LedgerError::BalanceTooLarge))
+        i128::try_from(amount).or_throw(LedgerError::BalanceTooLarge)
     }
 
     /// The line the two interfaces meet on: a `Ledger` operation refused for
@@ -204,7 +204,7 @@ impl Ledger for PausableLedger {
         self.balances
             .at_mut(&get_caller())
             .try_lazy_increase(Self::_cell_amount(amount))
-            .unwrap_or_else(|_| throw(LedgerError::BalanceTooLarge));
+            .or_throw(LedgerError::BalanceTooLarge);
     }
 
     fn withdraw(&mut self, amount: u128) {
@@ -221,7 +221,7 @@ impl Ledger for PausableLedger {
         self.balances
             .at_mut(&get_caller())
             .try_decrease(Self::_cell_amount(amount))
-            .unwrap_or_else(|_| throw(LedgerError::InsufficientFunds { requested: amount }));
+            .or_throw(LedgerError::InsufficientFunds { requested: amount });
     }
 
     fn balance(&self) -> u128 {

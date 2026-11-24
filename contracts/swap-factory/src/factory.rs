@@ -127,7 +127,7 @@ impl SwapFactory for Factory {
         let native = ERC20Client::new(&ADDRESS_NATIVE_TOKEN);
         // This interface counts native-token amounts in `u128`; the token's amounts are `i128`,
         // and no balance can cover anything above `i128::MAX`.
-        let funding = i128::try_from(funding).unwrap_or_else(|_| throw(ERC20Error::TooLarge));
+        let funding = i128::try_from(funding).or_throw(ERC20Error::TooLarge);
 
         let deploy_funded = |role: Role, hash: &SHA256Hash| -> Address {
             let nonce = tokens.nonce_for(role);

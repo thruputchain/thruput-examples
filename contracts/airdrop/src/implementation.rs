@@ -80,7 +80,7 @@ impl Airdrop {
         self.configuration
             .try_get()
             .none_if_missing()
-            .unwrap_or_else(|| throw(AirdropError::NotInitialized))
+            .or_throw(AirdropError::NotInitialized)
     }
 
     pub fn eligible(&self, address: &ContractAddress) -> bool {

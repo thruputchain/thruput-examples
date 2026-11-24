@@ -25,7 +25,7 @@ impl OracleFixture {
         self.record
             .try_get()
             .none_if_missing()
-            .unwrap_or_else(|| throw(FixtureError::MissingPrice))
+            .or_throw(FixtureError::MissingPrice)
     }
 }
 
