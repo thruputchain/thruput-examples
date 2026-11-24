@@ -110,7 +110,8 @@ export function useTransaction(config: AppConfig) {
               parseSignedTransactionHex(signedTransaction).tx.uniquifier;
             saved = { label, hash, expiresAt: String(block_expiry_height) };
             savePending(savedKey, saved);
-            setPending(saved);
+            // The user may have switched accounts while signing.
+            if (savedKey === shownKey.current) setPending(saved);
           },
         },
       });

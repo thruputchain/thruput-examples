@@ -295,3 +295,30 @@ it("does not offer to forget another account's claim after an unknown result", a
   act(() => result.current.forgetUnknown());
   expect(localStorage.getItem(keyFor(other))).toBe(otherRecord);
 });
+
+it("keeps another account's saved claim on screen when this account's signature arrives late", async () => {
+  const other = config.address;
+  const otherRecord = { hash: toBase58(new Uint8Array(32).fill(9)), expiresAt: "100" };
+  const { result, rerender } = claimFromScratch();
+  localStorage.setItem(keyFor(other), JSON.stringify(otherRecord));
+  let sign!: () => void;
+  const signing = new Promise<void>((done) => (sign = done));
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await signing;
+    await options.onSigned(evidence);
+    return { receipt: success };
+  });
+  let sent!: Promise<void>;
+  act(() => {
+    sent = result.current.send();
+  });
+  await waitFor(() => expect(mocks.execute).toHaveBeenCalled());
+  // The user switches accounts while the wallet is still signing.
+  mocks.wallet.address = other;
+  rerender();
+  await waitFor(() => expect(result.current.pending).toEqual(otherRecord));
+  sign();
+  await act(() => sent);
+  expect(result.current.pending).toEqual(otherRecord);
+  expect(JSON.parse(localStorage.getItem(keyFor(other))!)).toEqual(otherRecord);
+});

@@ -145,7 +145,8 @@ export function useClaim(config: PublicConfig) {
               parseSignedTransactionHex(signedTransaction).tx.uniquifier;
             saved = { hash, expiresAt: String(block_expiry_height) };
             localStorage.setItem(savedKey, JSON.stringify(saved));
-            setPending(saved);
+            // The user may have switched accounts while signing.
+            if (savedKey === shownKey.current) setPending(saved);
           },
         },
       });

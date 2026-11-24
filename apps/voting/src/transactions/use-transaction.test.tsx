@@ -389,3 +389,30 @@ it("does not call a transaction expired when the final read is indexed less far"
   expect(result.current.pending).toEqual(record);
   expect(result.current.message).toMatch(/has not indexed block 5000/);
 });
+
+it("keeps another account's saved transaction on screen when this account's signature arrives late", async () => {
+  const other = toBase58(new Uint8Array(32).fill(8));
+  const otherKey = key.replace(signerAddress, other);
+  const otherSaved = { ...saved, label: "Close poll", hash: toBase58(new Uint8Array(32).fill(9)) };
+  savePending(otherKey, otherSaved);
+  let sign!: () => void;
+  const signing = new Promise<void>((done) => (sign = done));
+  mocks.execute.mockImplementation(async ({ options }) => {
+    await signing;
+    await options.onSigned(signed);
+    return { receipt: success };
+  });
+  const { result, rerender } = renderHook(() => useTransaction(config), { wrapper });
+  let sent!: Promise<void>;
+  act(() => {
+    sent = result.current.send("Submit answer", invocation);
+  });
+  // The user switches accounts while the wallet is still signing.
+  mocks.wallet = { address: other };
+  rerender();
+  await waitFor(() => expect(result.current.pending).toEqual(otherSaved));
+  sign();
+  await act(() => sent);
+  expect(result.current.pending).toEqual(otherSaved);
+  expect(loadPending(otherKey)).toEqual(otherSaved);
+});
