@@ -25,8 +25,8 @@ export interface TokenQuery {
   offset: number;
   /**
    * List only tokens created at or before this block. A visitor's first page
-   * returns it, and later pages send it back, so new launches do not shift
-   * the pages they browse.
+   * returns the indexer's checkpoint, and later pages send it back, so new
+   * launches do not shift the pages they browse.
    */
   asOfBlock?: number | undefined;
 }
@@ -132,10 +132,11 @@ export class TokenStore {
     hasMore: boolean;
     asOfBlock: string | null;
   } {
-    const latest = this.#db
-      .prepare("SELECT MAX(block_height) AS height FROM tokens")
-      .get() as { height: number | null };
-    const asOfBlock = query.asOfBlock ?? latest.height;
+    // Stop at the checkpoint: every block up to it is fully indexed, while a
+    // later block can still be gaining tokens from the next RPC page.
+    const checkpoint = this.loadCheckpoint();
+    const asOfBlock =
+      query.asOfBlock ?? (checkpoint === undefined ? null : Number(checkpoint));
     const conditions: string[] = [];
     const values: (string | number)[] = [];
     if (asOfBlock !== null) {
