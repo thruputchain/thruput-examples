@@ -17,7 +17,7 @@
 //!     self.due.add(second, amount);
 //! }
 //!
-//! fn due_by(&self, second: u32) -> i128 {
+//! fn due_by(&self, second: u32) -> I256 {
 //!     self.due.prefix_sum(second)
 //! }
 //! ```
@@ -34,6 +34,11 @@
 //!
 //! A prefix sum reads up to 32 nodes, as of the block's start, plus whatever this transaction has
 //! added. It never sees another transaction's adds in its own block.
+//!
+//! Each node fits an `i128`, since the runtime refuses an add that would overflow one. But the
+//! nodes a prefix sum reads cover ranges that no single node does, so their sum need not fit: two
+//! amounts of 2^126, at indices whose paths share no node, already pass `i128::MAX`. So a prefix
+//! sum is an [`I256`], and no query can overflow.
 //!
 //! # What a subtract may take
 //!
@@ -91,13 +96,13 @@ impl Fenwick {
     }
 
     /// The sum of every amount at `index` or below: as of the block's start, plus what this
-    /// transaction has added.
-    pub fn prefix_sum(&self, index: u32) -> i128 {
+    /// transaction has added. An [`I256`], since a sum of up to 32 nodes need not fit an `i128`.
+    pub fn prefix_sum(&self, index: u32) -> I256 {
         // Every index past `MAX_INDEX` holds nothing, so the sum up to it is the sum up to there.
         let mut node = index.min(MAX_INDEX) + 1;
-        let mut sum = 0;
+        let mut sum = I256::from(0);
         while node > 0 {
-            sum += self.node(node);
+            sum += I256::from(self.node(node));
             // Drop the lowest set bit: on to the range that ends where this one starts.
             node &= node - 1;
         }

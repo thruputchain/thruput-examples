@@ -24,10 +24,14 @@ where
     r.assert_return_as::<R>()
 }
 
+// The prefix sums at `indices`, each of which these tests keep within an `i128`.
 fn prefix_sums(env: &TestEnvironmentHandle, indices: &[u32]) -> Vec<i128> {
     let indices = indices.to_vec();
     with_tree(env, move |t| {
-        indices.iter().map(|&i| t.prefix_sum(i)).collect::<Vec<_>>()
+        indices
+            .iter()
+            .map(|&i| i128::try_from(t.prefix_sum(i)).expect("fits an i128"))
+            .collect::<Vec<_>>()
     })
 }
 
@@ -222,4 +226,25 @@ fn the_ends_of_the_range() {
         (t.add(u32::MAX, 1) == Err(OutOfRange)) && (t.missing_nodes(u32::MAX) == Err(OutOfRange))
     });
     assert!(refused);
+}
+
+// Each node fits an `i128`, but a prefix sum need not. Index 0's path ends at node 2^31, and index
+// 2^31's runs from node 2^31 + 1 to the top: they share no node, so each holds 2^126 at most. The
+// sum of everything reads one node from each, and is 2^127, past `i128::MAX`.
+#[test]
+fn a_prefix_sum_can_pass_what_a_node_holds() {
+    const HALF: u32 = 1 << 31;
+    let env = TestEnvironment::no_cost();
+    with_tree(&env, |t| {
+        t.add(0, 1 << 126).expect("in range");
+        t.add(HALF, 1 << 126).expect("in range");
+    });
+    env.advance_block();
+
+    let sums = with_tree(&env, |t| {
+        [HALF - 1, HALF, MAX_INDEX].map(|index| t.prefix_sum(index))
+    });
+    let half = I256::from(1i128 << 126);
+    assert_eq!(sums, [half, half + half, half + half]);
+    assert!(i128::try_from(sums[2]).is_err());
 }

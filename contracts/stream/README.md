@@ -37,12 +37,13 @@ From the repo root, without a node or npm:
 cargo test -p fenwick -p stream --locked
 ```
 
-Expected: **20 tests pass**, and one RV32 test is skipped (see below).
+Expected: **21 tests pass**, and one RV32 test is skipped (see below).
 
-The tree's 6 tests check that its prefix sums match a plain array's over many
+The tree's 7 tests check that its prefix sums match a plain array's over many
 blocks, and that 40 adds in one block commit together, in either order, with the
 same result. They also check that a prefix sum sees only the block's start, that
-taking back an amount twice is refused, and which nodes an add creates.
+taking back an amount twice is refused, which nodes an add creates, and that a
+prefix sum larger than any node can hold is still read exactly.
 
 The contract's 14 tests check the following:
 
@@ -154,9 +155,10 @@ What it does not protect against:
   balances by itself, breaks the exact accounting.
 - **A stream cannot be changed.** It cannot be topped up, extended or paused, only
   cancelled. Opening a new one is how to pay more.
-- **Totals are 128-bit.** A payee's `starts` total sums each rate times its start
-  second. Overflowing it would take streams paying the payee more than 2^95 base
-  units. Past that, new streams to that payee are refused.
+- **Stored totals are 128-bit.** The largest, the sum of each rate times its end
+  second, could overflow only after streams paying the payee more than 2^95 base
+  units. Past that, new streams to that payee are refused. Reads sum the nodes in
+  256 bits, so what a payee is owed can always be read and withdrawn.
 - **The clock runs out.** The tree holds 2^32 - 1 seconds from `initialize`,
   about 136 years.
 - **Streams are public.** Anyone can see who pays whom, and how much.

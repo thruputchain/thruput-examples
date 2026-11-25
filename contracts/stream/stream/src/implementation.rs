@@ -164,17 +164,19 @@ impl Payee {
         // As if no stream ended: each has paid `rate * (at - start)`.
         let running = I256::from(read(&self.rates)) * at_ - I256::from(read(&self.starts));
         // Each that has ended by `at` overcounts that by `rate * (at - end)`.
-        let ended = I256::from(self.ends.prefix_sum(at)) * at_
-            - I256::from(self.end_weights.prefix_sum(at));
+        let ended = self.ends.prefix_sum(at) * at_ - self.end_weights.prefix_sum(at);
 
-        // Every term is under 2^160, and the total is no more than was paid in, so it fits.
+        // Every term is under 2^170, so none overflows. The total is no more than was paid in, so
+        // it fits an `i128`.
         i128::try_from(I256::from(read(&self.settled)) + running - ended)
             .or_throw(StreamError::TooLarge)
     }
 
-    /// The sum of the rates of the streams still running at second `at`.
+    /// The sum of the rates of the streams still running at second `at`. No more than `rates`, so
+    /// it fits.
     fn rate(&self, at: u32) -> i128 {
-        read(&self.rates) - self.ends.prefix_sum(at)
+        i128::try_from(I256::from(read(&self.rates)) - self.ends.prefix_sum(at))
+            .or_throw(StreamError::TooLarge)
     }
 
     fn owed(&self, at: u32) -> i128 {
