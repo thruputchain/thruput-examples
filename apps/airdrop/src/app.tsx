@@ -261,7 +261,7 @@ export function App({ config }: { config: PublicConfig }) {
       </main>
       <footer>
         Test tokens. Real transactions.{" "}
-        <a href="https://docs.thruput.network/">Read the docs ↗</a>
+        <a href="https://www.thruput.network/docs/">Read the docs ↗</a>
       </footer>
     </div>
   );
