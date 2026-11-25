@@ -65,7 +65,7 @@ thruput-signing = { version = "=0.47.0" }
 thruput-testkit = { version = "=0.47.0" }
 
 # from thruput-protocol-rs (now on crates.io)
-thruput-xdr = { version = "=0.67.0", features = ["serde", "xdrs"] }
+thruput-xdr = { version = "=0.69.0", features = ["serde", "xdrs"] }
 thruput-trace = { version = "=0.67.0" }
 
 # from crates.io:
