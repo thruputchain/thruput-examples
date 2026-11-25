@@ -27,6 +27,7 @@ members = [
     "contracts/erc20/integration-test",
     "contracts/permit/*",
     "contracts/stellar-account/*",
+    "contracts/stream/*",
     "contracts/swap/*",
     "contracts/token-factory/*",
     "contracts/waitlist/*",

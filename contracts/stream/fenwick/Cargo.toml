@@ -1,0 +1,30 @@
+[package]
+name = "fenwick"
+version = "0.1.0"
+description = "A Fenwick tree in contract storage whose updates commute, so concurrent transactions never conflict over it"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+doctest = false
+test = false # suppress output from our zero unit-tests
+
+[dependencies]
+thruput-sdk = { workspace = true }
+
+[features]
+# Enables std in native tests.
+dev = ["thruput-sdk/dev"]
+
+# Turns the `dev` feature on for the tests in `tests/`.
+[dev-dependencies]
+fenwick = { path = ".", features = ["dev"] }
+
+[lints]
+clippy.result_large_err = "allow"
