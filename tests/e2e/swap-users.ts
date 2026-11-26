@@ -22,6 +22,7 @@ import { SwapRouter } from "../../apps/swap/src/contracts/generated/swap-router"
 import {
   SwapHandler,
   spec as handlerSpec,
+  swap_if,
 } from "../../apps/swap/src/contracts/generated/swap-handler";
 import {
   SwapDriver,
@@ -255,6 +256,16 @@ test(
             // Cause 1 is a contract exception: the handler's SwapRequestError.
             assert.equal(failure.cause, 1n);
             assert.equal(failure.selector, requestErrorSelector);
+            // The payload is the error value: the output limit, not another SwapRequestError.
+            assert.deepEqual(
+              failure.payload,
+              new Uint8Array([
+                Number(
+                  swap_if.v0_1.handler.SwapRequestError
+                    .InsufficientOutputAmount,
+                ),
+              ]),
+            );
           });
           assert.equal(await balance(tokenA, carol.account.address), supply);
           assert.equal(await balance(tokenB, carol.account.address), supply);
@@ -292,7 +303,18 @@ test(
                 }),
               ]),
             ),
-            (error) => isThruputError(error, "transactionFailed"),
+            (error) => {
+              if (!isThruputError(error, "transactionFailed")) return false;
+              // The wallet passes the factory's abort through: it must be PairExists.
+              const outcome = SwapFactory.v0_1.createPair.decodeReceiptOutcome(
+                error.transaction!.receipt!,
+              );
+              return (
+                outcome.kind === "abort" &&
+                outcome.exception.kind === "declared" &&
+                outcome.exception.variant === "PairExists"
+              );
+            },
           );
 
           // The report links every user transaction to its user, step, and outcome.
