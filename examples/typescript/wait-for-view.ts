@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { NativeRpcError, NativeRpcErrorCode } from "@thruputchain/client";
+import { isThruputError } from "@thruputchain/client";
 
 // A committed receipt can arrive before the read snapshot catches up.
 // Callers set minStateBlockHeight to the receipt height. Retry only that lagging read;
@@ -11,8 +11,8 @@ export async function waitForView<T>(read: () => Promise<T>): Promise<T> {
       return await read();
     } catch (error) {
       if (
-        !(error instanceof NativeRpcError) ||
-        error.code !== NativeRpcErrorCode.StateHeightUnavailable ||
+        !isThruputError(error, "nativeRpcError") ||
+        error.context.kind !== "stateHeightUnavailable" ||
         Date.now() >= deadline
       )
         throw error;

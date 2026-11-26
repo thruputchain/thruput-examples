@@ -3,8 +3,8 @@ import {
   createThruputClient,
   defineCluster,
   hashFromBase58,
-  HistoryWalkError,
   HttpTransport,
+  isThruputError,
   toBase58,
   type CoreThruputClient,
 } from "@thruputchain/client";
@@ -121,7 +121,7 @@ export function startIndexer(
       status.historyError = false;
       status.lastError = null;
     } catch (error) {
-      status.historyError = error instanceof HistoryWalkError;
+      status.historyError = isThruputError(error, "historyWalkFailed");
       status.lastError = error instanceof Error ? error.message : String(error);
       console.error(`Token indexer: ${status.lastError}`);
     }

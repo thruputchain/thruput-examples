@@ -13,9 +13,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   createThruputClient,
   createWalletClient,
-  FundingObservationError,
-  TransactionExecutionError,
-  TransactionObservationError,
+  ThruputError,
   toBase58,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -214,34 +212,46 @@ it("persists intent before submission and marks a committed abort as failed", as
       expect((await readManifest(run)).transactions).toEqual([
         { label: "Deploy Counter", status: "unknown" },
       ]);
-      throw new TransactionExecutionError(aborted, evidence);
+      throw new ThruputError("transactionFailed", "Execution failed", {
+        transaction: {
+          hash: evidence.transactionHash,
+          outcome: "failed",
+          reason: "aborted",
+          receipt: aborted,
+          submission: evidence,
+        },
+      });
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
   });
 });
 
-it.each(["beforeSubmission", "submission", "observation"] as const)(
-  "records %s without retrying",
-  async (phase) => {
+it.each([
+  ["notSubmitted", "notDispatched", "failed"],
+  ["unknown", "submissionFailed", "unknown"],
+  ["unknown", "timeout", "unknown"],
+] as const)(
+  "records outcome %s (%s) as %s without retrying",
+  async (outcome, reason, status) => {
     const run = await createRun(directory, toBase58(evidence.networkHash));
     const submit = vi.fn(async () => {
-      throw new TransactionObservationError(
-        evidence,
-        new Error("Stopped"),
-        undefined,
-        undefined,
-        phase,
+      throw new ThruputError(
+        outcome === "notSubmitted"
+          ? "transactionNotSubmitted"
+          : "transactionOutcomeUnknown",
+        "Stopped",
+        { transaction: { hash: evidence.transactionHash, outcome, reason } },
       );
     });
     await expect(record(run, "Deploy Counter", submit)).rejects.toBeInstanceOf(
-      TransactionObservationError,
+      ThruputError,
     );
     expect(submit).toHaveBeenCalledTimes(1);
     expect((await readManifest(run)).transactions[0]).toMatchObject({
-      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      status,
       hash: toBase58(evidence.transactionHash),
     });
   },
@@ -250,25 +260,32 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
 it("retains an uncertain faucet transaction hash", async () => {
   const run = await createRun(directory, toBase58(evidence.networkHash));
   const submit = vi.fn(async () => {
-    throw new FundingObservationError(
-      {
-        recipient: new Uint8Array(32),
-        clientNonce: new Uint8Array(16),
-        networkHash: evidence.networkHash,
+    throw new ThruputError("fundingStopped", "Funding observation stopped", {
+      context: {
+        request: {
+          recipient: new Uint8Array(32),
+          clientNonce: new Uint8Array(16),
+          networkHash: evidence.networkHash,
+        },
+        lastResponse: {
+          attemptStatus: "pending",
+          recipient: new Uint8Array(32),
+          rawAmount: 100000000n,
+          retryAfterSeconds: 1n,
+          transactionHash: evidence.transactionHash,
+        },
       },
-      {
-        attemptStatus: "pending",
-        recipient: new Uint8Array(32),
-        rawAmount: 100000000n,
-        retryAfterSeconds: 1n,
-        transactionHash: evidence.transactionHash,
+      transaction: {
+        hash: evidence.transactionHash,
+        outcome: "unknown",
+        reason: "timeout",
       },
-      new Error("Timeout"),
-    );
+      cause: new Error("Timeout"),
+    });
   });
   await expect(
     record(run, "Fund Counter Operator", submit),
-  ).rejects.toBeInstanceOf(FundingObservationError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(submit).toHaveBeenCalledTimes(1);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "unknown",

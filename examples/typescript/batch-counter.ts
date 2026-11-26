@@ -29,17 +29,20 @@ await wallet.requestAirdrop();
 const gas = gasAmount(500_000n);
 
 // The native DefaultWallet executes the ordered calls in one transaction.
+// Counter takes no auth tokens, so the batch mints none and each call forwards none.
 async function batch(calls: Invocation[]) {
   const hash = await wallet.sendInvocation({
     invocation: DefaultWallet.v0_1.execute.invocation(
       account.address,
       gasAmount(10_000_000n),
       {
+        mints: [],
         calls: calls.map((call) => ({
           target: call.invoked_address,
           entrypoint: fixedBytes(call.entrypoint, 8),
           gas_limit: call.gas_limit,
           calldata: call.calldata,
+          tokens: [],
         })),
       },
     ),

@@ -20,7 +20,7 @@ import {
   Ed25519Signer,
   toBase58,
   toHex0x,
-  TransactionReceiptTimeoutError,
+  isThruputError,
   serializeSignedTransaction,
 } from "@thruputchain/client";
 import { DefaultWallet } from "@thruputchain/client/contracts";
@@ -204,11 +204,13 @@ try {
           ),
         ),
         {
+          mints: [],
           calls: invocations.map((call) => ({
             target: call.invoked_address,
             entrypoint: fixedBytes(call.entrypoint, 8),
             gas_limit: call.gas_limit,
             calldata: call.calldata,
+            tokens: [],
           })),
         },
       ),
@@ -427,12 +429,12 @@ try {
   await assert.rejects(
     wallet.waitForTransactionReceipt(unfundedHash, { timeoutMs: 3_000 }),
     (error: unknown) =>
-      error instanceof TransactionReceiptTimeoutError &&
-      error.lastStatus !== undefined &&
-      "status" in error.lastStatus &&
-      error.lastStatus.status === "retry" &&
-      error.lastStatus.error.source === "executor" &&
-      error.lastStatus.error.code === 3,
+      isThruputError(error, "transactionOutcomeUnknown") &&
+      error.context.lastStatus !== undefined &&
+      "status" in error.context.lastStatus &&
+      error.context.lastStatus.status === "retry" &&
+      error.context.lastStatus.error.source === "executor" &&
+      error.context.lastStatus.error.code === 3,
   );
   console.log(
     "Transfer alone cannot commit with zero storage reserve",

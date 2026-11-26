@@ -19,10 +19,9 @@ import {
   fixedBytes,
   fromHex0x,
   hashContract,
+  ThruputError,
   toBase58,
   toHex0x,
-  TransactionObservationError,
-  TransactionExecutionError,
   type TransactionReceipt,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
@@ -174,14 +173,22 @@ beforeEach(async () => {
     return {
       transactionHash: new Uint8Array(32),
       address: deployment.address,
-      receipt: { blockHeight: 3n, execution: { result: "return" } },
+      receipt: {
+        transactionHash: new Uint8Array(32),
+        blockHeight: 3n,
+        execution: { result: "return" },
+      },
     };
   });
   mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
     return {
       transactionHash: new Uint8Array(32),
-      receipt: { blockHeight: 2n, execution: { result: "return" } },
+      receipt: {
+        transactionHash: new Uint8Array(32),
+        blockHeight: 2n,
+        execution: { result: "return" },
+      },
     };
   });
   vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
@@ -577,9 +584,13 @@ const evidence = {
   signedTransaction: new Uint8Array([1, 2, 3]),
 };
 
-it.each(["beforeSubmission", "submission", "observation"] as const)(
-  "records %s without retrying",
-  async (phase) => {
+it.each([
+  ["notSubmitted", "notDispatched", "failed"],
+  ["unknown", "submissionFailed", "unknown"],
+  ["unknown", "timeout", "unknown"],
+] as const)(
+  "records outcome %s (%s) as %s without retrying",
+  async (outcome, reason, status) => {
     const run = await createRun(root, zeroNetwork);
     const submit = vi.fn(async () => {
       const manifest = JSON.parse(
@@ -588,23 +599,23 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
       expect(manifest.transactions).toEqual([
         { label: "Deploy", status: "unknown" },
       ]);
-      throw new TransactionObservationError(
-        evidence,
-        new Error("Stopped"),
-        undefined,
-        undefined,
-        phase,
+      throw new ThruputError(
+        outcome === "notSubmitted"
+          ? "transactionNotSubmitted"
+          : "transactionOutcomeUnknown",
+        "Stopped",
+        { transaction: { hash: evidence.transactionHash, outcome, reason } },
       );
     });
     await expect(record(run, "Deploy", submit)).rejects.toBeInstanceOf(
-      TransactionObservationError,
+      ThruputError,
     );
     expect(submit).toHaveBeenCalledOnce();
     const manifest = JSON.parse(
       await readFile(join(run.directory, "manifest.json"), "utf8"),
     );
     expect(manifest.transactions[0]).toMatchObject({
-      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      status,
       hash: toBase58(evidence.transactionHash),
     });
   },
@@ -621,9 +632,17 @@ it("records a confirmed execution failure", async () => {
   };
   await expect(
     record(run, "Deploy", async () => {
-      throw new TransactionExecutionError(receipt, evidence);
+      throw new ThruputError("transactionFailed", "Execution failed", {
+        transaction: {
+          hash: evidence.transactionHash,
+          outcome: "failed",
+          reason: "aborted",
+          receipt: receipt,
+          submission: evidence,
+        },
+      });
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
