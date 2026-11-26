@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   deploy: vi.fn(),
   steps: [] as string[],
   stepMetadata: [] as unknown[],
+  // Set to make the scenario fail when it saves its report on close.
+  closeError: undefined as Error | undefined,
   link: vi.fn(),
   // Contract views by name. Each receives the view's readable arguments.
   views: {
@@ -89,7 +91,7 @@ vi.mock("@thruputchain/testkit", async (original) => ({
       call: signed(mocks.call),
       deploy: signed(mocks.deploy),
     };
-    return run({
+    const result = await run({
       // Like testkit, accept only the configured actor.
       actor: (actorName: string) => {
         if (actorName !== name)
@@ -115,6 +117,9 @@ vi.mock("@thruputchain/testkit", async (original) => ({
         },
       },
     });
+    // Testkit saves the report when the scenario closes, after the callback.
+    if (mocks.closeError) throw mocks.closeError;
+    return result;
   }),
 }));
 
@@ -156,6 +161,7 @@ beforeEach(async () => {
   vi.resetAllMocks();
   mocks.steps.length = 0;
   mocks.stepMetadata.length = 0;
+  mocks.closeError = undefined;
   directory = await mkdtemp(join(tmpdir(), "airdrop-setup-test-"));
   env = {
     AIRDROP_ENV_PATH: join(directory, "app.env"),
@@ -298,6 +304,17 @@ it.each(["local", "devnet"] as const)(
     ).not.toHaveProperty("networkHash");
   },
 );
+
+it("publishes nothing when the report cannot be saved after a successful run", async () => {
+  mocks.closeError = Object.assign(new Error("Report write failed"), {
+    code: "EIO",
+  });
+  await expect(setup(env)).rejects.toBe(mocks.closeError);
+  expect(mocks.steps.at(-1)).toBe("verify-airdrop");
+  await expect(readFile(env.AIRDROP_ENV_PATH!)).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
 
 it("stops at an uncertain deployment without later transactions or publication", async () => {
   mocks.deploy.mockRejectedValue(
