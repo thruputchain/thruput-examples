@@ -75,6 +75,8 @@ beforeEach(async () => {
         if (fail === "lostResponse")
           throw new Error("Response lost after submission");
       }
+      // Every receipt returns the predicted Counter address, read from the
+      // deployment step. Only the deployment decodes it; other receipts ignore it.
       if (method === "getTransactionReceipt" && result) {
         const { report } = await readRun();
         const address = report.steps.find(
@@ -199,7 +201,16 @@ it.each(["funding", "deployment", "verification", "report"] as const)(
   async (phase) => {
     fail = phase;
     await writeFile(options.output, "previous environment");
-    await expect(provisionCounter(options)).rejects.toThrow();
+    // Each phase stops setup for its own reason.
+    const reasons = {
+      funding: { code: "fundingStopped" },
+      deployment: { code: "transactionFailed" },
+      verification: { message: expect.stringContaining("verification failed") },
+      report: { code: "EISDIR" },
+    };
+    await expect(provisionCounter(options)).rejects.toMatchObject(
+      reasons[phase],
+    );
     expect(await readFile(options.output, "utf8")).toBe("previous environment");
     expect((await readdir(directory)).sort()).toEqual([
       ".env.local",
@@ -303,6 +314,18 @@ it.each(["local", "devnet"] as const)(
     await setup(env, network);
     expect((await readRun()).report.networkHash).toBe(
       toBase58(new Uint8Array(32)),
+    );
+    // Each network has its own default RPC URL, and THRUPUT_RPC_URL overrides it.
+    const defaultUrl =
+      network === "local"
+        ? "http://127.0.0.1:9545"
+        : "https://rpc.thruput.network";
+    expect(await readFile(options.output, "utf8")).toContain(
+      `VITE_THRUPUT_RPC_URL=${defaultUrl}\n`,
+    );
+    await setup({ ...env, THRUPUT_RPC_URL: "http://127.0.0.1:9999" }, network);
+    expect(await readFile(options.output, "utf8")).toContain(
+      "VITE_THRUPUT_RPC_URL=http://127.0.0.1:9999\n",
     );
     vi.mocked(HttpTransport.prototype.request).mockClear();
     await expect(

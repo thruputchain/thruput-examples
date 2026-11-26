@@ -14,7 +14,8 @@ For a simple counter app with a browser wallet, run
 
 ## Local setup
 
-Complete [root setup](../../README.md#setup) and the trial dependency setup below.
+Complete [root setup](../../README.md#setup) and run `npm ci` from the root. Use
+CLI 0.48.0 or newer with its compatible managed runtime.
 In a separate terminal:
 
 ```sh
@@ -69,10 +70,13 @@ The terminal prints the wallet, predicted Counter address, and transaction hashe
 If a send response is lost, setup observes the signed transaction instead of
 sending it again. A transaction still unconfirmed when the wait ends stays
 unknown; setup never resubmits automatically.
-`reconcileRun(runDirectory + "/transactions", client)` observes the original funding
-and deployment without sending them again or changing the saved report.
+`reconcileRun("<run>/transactions", client)` observes the original funding and
+deployment without sending them again or changing the saved report. If the
+funding attempt has no hash, call the faucet's `requestAirdropAttempt` with the
+`clientNonce` saved in its intent, never a new nonce: a new nonce can fund twice.
 
-`verify-counter: completed` means the chain state was checked. The environment is
+When `report.json` shows the `verify-counter` step as `completed`, the chain
+state was checked. The environment is
 published afterward; the environment file and final `Counter ready` message confirm
 that publication. Testkit's `createKeyFile` saves the key before funding.
 `scripts/index.ts` keeps configuration, calls, and assertions visible. Expected state
@@ -144,8 +148,8 @@ Root `npm run test:counter` checks an isolated node and real browser input after
 the artifact and app are built. See
 [checks and prerequisites](../../scripts/README.md#checks).
 
-`test:setup:integration` needs Linux and CLI 0.48.0 or newer. Run
-`generate:contracts` first. It tests local and devnet setup modes against an
+`test:setup:integration` needs Linux and CLI 0.48.0 or newer, and uses
+`thruput` from `PATH`. Run `generate:contracts` first. It tests local and devnet setup modes against an
 isolated local node, and preserves an existing environment on failure. When a
 deployment's send response is lost, setup observes it without another
 submission, and reconciliation finds the same transaction. It does not qualify the

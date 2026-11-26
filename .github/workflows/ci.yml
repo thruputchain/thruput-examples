@@ -87,6 +87,7 @@ jobs:
         run: |
           npm run test:examples
           npm run test:counter
+          npm run test:setup:integration --workspace apps/counter
           npm run test:seed
           npm run test:batching
           npm run test:launchpad-swap

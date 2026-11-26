@@ -141,7 +141,9 @@ export async function provisionCounter(options: Options): Promise<void> {
       );
       try {
         // The faucet chooses the amount. The report records the request and its hash.
-        await scenario.run.step("fund-operator", () => actor.fund(wait));
+        await scenario.run.step("fund-operator", () =>
+          actor.fund({ timeoutMs: wait.timeoutMs }),
+        );
         await scenario.run.step(
           "deploy-counter",
           () =>
