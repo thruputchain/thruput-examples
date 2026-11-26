@@ -52,14 +52,14 @@ their network hashes must agree.
 
 ### Setup records
 
-Each run prints its directory under `.local/counter-setup/`, beside the environment
-output. `transactions/report.json` is testkit's public record:
+Each run prints its report path under `.local/counter-setup/<run>/transactions/`,
+beside the environment output. `transactions/report.json` is testkit's public record:
 
 - `actors` maps `Counter Operator` to its wallet address.
 - `steps` records funding, deployment, and verification. Deployment metadata includes
   the predicted Counter address and initial value.
-- `attempts` contains the faucet funding and deployment. Each has its hash and
-  execution outcome: `succeeded`, `failed`, `notSubmitted`, or `unknown`.
+- `attempts` contains the faucet funding and deployment. Each has its execution
+  outcome, and its hash when one is known: `succeeded`, `failed`, `notSubmitted`, or `unknown`.
   The deployment also has its receipt.
 
 `transactions/evidence/` holds restricted signed evidence saved before dispatch.

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { test } from "node:test";
-import { toBase58 } from "@thruputchain/client";
+import { isThruputError, toBase58 } from "@thruputchain/client";
 import {
   inspectRun,
   reconcileRun,
@@ -76,6 +76,9 @@ test(
               ...options,
               networkId: toBase58(new Uint8Array(32).fill(9)),
             }),
+            (error) =>
+              isThruputError(error, "rpcIncompatible") &&
+              error.context.kind === "network",
           );
           assert.equal(await readFile(output, "utf8"), published);
           assert.equal((await readdir(runs)).length, 2);
@@ -152,7 +155,6 @@ test(
               proxy.close((error) => (error ? reject(error) : resolve())),
             );
           }
-          await node.client.getChainTip();
         },
       );
     } finally {

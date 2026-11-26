@@ -257,7 +257,9 @@ it("observes the original deployment after a lost response without resending", a
 
 it("keeps verified evidence when environment publication fails and removes the temporary file", async () => {
   await mkdir(options.output);
-  await expect(provisionCounter(options)).rejects.toThrow();
+  await expect(provisionCounter(options)).rejects.toMatchObject({
+    code: "EISDIR",
+  });
   const { report } = await readRun();
   expect(report.steps.at(-1)).toMatchObject({
     name: "verify-counter",
@@ -294,7 +296,10 @@ it("rejects a network change between discovery and scenario connection before fu
     },
   );
   await writeFile(options.output, "previous environment");
-  await expect(provisionCounter(options)).rejects.toThrow();
+  await expect(provisionCounter(options)).rejects.toMatchObject({
+    code: "rpcIncompatible",
+    context: { kind: "network" },
+  });
   expect(await readFile(options.output, "utf8")).toBe("previous environment");
   expect(
     vi
@@ -333,7 +338,10 @@ it.each(["local", "devnet"] as const)(
         { ...env, THRUPUT_NETWORK_ID: toBase58(new Uint8Array(32).fill(1)) },
         network,
       ),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({
+      code: "rpcIncompatible",
+      context: { kind: "network" },
+    });
     expect(
       vi
         .mocked(HttpTransport.prototype.request)
