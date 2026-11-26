@@ -558,6 +558,15 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(mocks.fund).not.toHaveBeenCalled();
   });
 
+  it("checks the public folder before any transaction", async () => {
+    // A file where the asset folder should be cannot hold the code asset.
+    const blocked = join(root, "blocked");
+    await writeFile(blocked, "");
+    vi.stubEnv("LAUNCHPAD_APP_PUBLIC_DIR", blocked);
+    await expect(main()).rejects.toMatchObject({ code: "ENOTDIR" });
+    expect(mocks.fund).not.toHaveBeenCalled();
+    expect(mocks.steps).toEqual([]);
+  });
   it("rejects invalid networks and unsupported wire formats before funding", async () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", "invalid");
     await expect(main()).rejects.toThrow(/base58/);

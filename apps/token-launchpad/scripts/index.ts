@@ -178,95 +178,8 @@ export async function provisionLaunchpad(options: {
     creation_fee: 0n,
     fee_recipient: null,
   };
-  await withScenario(
-    {
-      network: {
-        cluster: { ...cluster, networkHash: expectedNetwork },
-        transport,
-      },
-      accounts: { "Launchpad Deployer": deployer.account },
-      runDirectory,
-    },
-    async (scenario) => {
-      const actor = scenario.actor("Launchpad Deployer");
-      console.log(
-        `Deployer: ${deployer.address}\nPredicted factory: ${toBase58(factoryAddress)}`,
-      );
-      try {
-        await scenario.run.step("fund-deployer", async () => {
-          // The faucet chooses the amount. The report records the request and its hash.
-          await actor.fund({ timeoutMs: wait.timeoutMs });
-          const { rawBalance } = await actor.wallet.getBalance();
-          if (rawBalance < CONTRACT_FUNDING * 3n)
-            throw new Error(
-              "Infrastructure deployer airdrop did not provide the required native-token reserve",
-            );
-        });
-        // The native contract needs storage reserve for future token balance rows.
-        await scenario.run.step("fund-native-reserve", () =>
-          actor.call(
-            [
-              ERC20.v0_1.transfer.call({
-                address: NATIVE_TOKEN_ADDRESS,
-                gasLimit: GAS_LIMIT,
-                args: {
-                  receiver: NATIVE_TOKEN_ADDRESS,
-                  amount: CONTRACT_FUNDING,
-                },
-              }),
-            ],
-            { wait },
-          ),
-        );
-        await scenario.run.step(
-          "deploy-factory",
-          () =>
-            // Funding, deployment, and initialization succeed or fail together.
-            actor.deploy(deployment, {
-              gasLimit: GAS_LIMIT,
-              amount: CONTRACT_FUNDING,
-              initializer: StandardTokenFactory.v0_1.initialize.call({
-                address: factoryAddress,
-                gasLimit: GAS_LIMIT,
-                args: { config: expected },
-              }),
-              wait,
-            }),
-          { metadata: { address: toBase58(factoryAddress) } },
-        );
-        await scenario.run.step("verify-factory", async () => {
-          // Testkit reads state containing the confirmed deployment.
-          const observed = (
-            await scenario.view(
-              StandardTokenFactory.v0_1.config.viewRequest({
-                address: factoryAddress,
-              }),
-            )
-          ).value;
-          // Compare with scenario inputs, independently of the deployment receipt.
-          if (
-            !bytesEqual(observed.token_code_hash, expected.token_code_hash) ||
-            observed.required_token_funding !==
-              expected.required_token_funding ||
-            !bytesEqual(observed.native_token, expected.native_token) ||
-            observed.creation_fee !== 0n ||
-            observed.fee_recipient !== null
-          )
-            throw new Error(
-              "The deployed factory configuration could not be verified",
-            );
-        });
-      } finally {
-        for (const attempt of scenario.run.report().attempts) {
-          console.log(
-            `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
-          );
-        }
-      }
-    },
-  );
 
-  // Finish report persistence and scenario cleanup before publishing app files.
+  // Check both outputs before any transaction spends funds.
   await mkdir(dirname(environmentPath), { recursive: true });
   await mkdir(dirname(artifactPath), { recursive: true });
   const temporary = `${environmentPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
@@ -277,6 +190,97 @@ export async function provisionLaunchpad(options: {
       `${JSON.stringify({ contractType: "rv32", data: toHex0x(tokenCode), hash: toBase58(tokenHash) })}\n`,
       { mode: 0o644, flag: "wx" },
     );
+    await writeFile(temporary, "", { mode: 0o600, flag: "wx" });
+
+    await withScenario(
+      {
+        network: {
+          cluster: { ...cluster, networkHash: expectedNetwork },
+          transport,
+        },
+        accounts: { "Launchpad Deployer": deployer.account },
+        runDirectory,
+      },
+      async (scenario) => {
+        const actor = scenario.actor("Launchpad Deployer");
+        console.log(
+          `Deployer: ${deployer.address}\nPredicted factory: ${toBase58(factoryAddress)}`,
+        );
+        try {
+          await scenario.run.step("fund-deployer", async () => {
+            // The faucet chooses the amount. The report records the request and its hash.
+            await actor.fund({ timeoutMs: wait.timeoutMs });
+            const { rawBalance } = await actor.wallet.getBalance();
+            if (rawBalance < CONTRACT_FUNDING * 3n)
+              throw new Error(
+                "Infrastructure deployer airdrop did not provide the required native-token reserve",
+              );
+          });
+          // The native contract needs storage reserve for future token balance rows.
+          await scenario.run.step("fund-native-reserve", () =>
+            actor.call(
+              [
+                ERC20.v0_1.transfer.call({
+                  address: NATIVE_TOKEN_ADDRESS,
+                  gasLimit: GAS_LIMIT,
+                  args: {
+                    receiver: NATIVE_TOKEN_ADDRESS,
+                    amount: CONTRACT_FUNDING,
+                  },
+                }),
+              ],
+              { wait },
+            ),
+          );
+          await scenario.run.step(
+            "deploy-factory",
+            () =>
+              // Funding, deployment, and initialization succeed or fail together.
+              actor.deploy(deployment, {
+                gasLimit: GAS_LIMIT,
+                amount: CONTRACT_FUNDING,
+                initializer: StandardTokenFactory.v0_1.initialize.call({
+                  address: factoryAddress,
+                  gasLimit: GAS_LIMIT,
+                  args: { config: expected },
+                }),
+                wait,
+              }),
+            { metadata: { address: toBase58(factoryAddress) } },
+          );
+          await scenario.run.step("verify-factory", async () => {
+            // Testkit reads state containing the confirmed deployment.
+            const observed = (
+              await scenario.view(
+                StandardTokenFactory.v0_1.config.viewRequest({
+                  address: factoryAddress,
+                }),
+              )
+            ).value;
+            // Compare with scenario inputs, independently of the deployment receipt.
+            if (
+              !bytesEqual(observed.token_code_hash, expected.token_code_hash) ||
+              observed.required_token_funding !==
+                expected.required_token_funding ||
+              !bytesEqual(observed.native_token, expected.native_token) ||
+              observed.creation_fee !== 0n ||
+              observed.fee_recipient !== null
+            )
+              throw new Error(
+                "The deployed factory configuration could not be verified",
+              );
+          });
+        } finally {
+          for (const attempt of scenario.run.report().attempts) {
+            console.log(
+              `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
+            );
+          }
+        }
+      },
+    );
+
+    // Finish report persistence and scenario cleanup before publishing app files.
     await writeFile(
       temporary,
       renderEnvironment({
@@ -293,7 +297,7 @@ export async function provisionLaunchpad(options: {
               "",
             ].join("\n")
           : ""),
-      { mode: 0o600, flag: "wx", flush: true },
+      { mode: 0o600, flush: true },
     );
     // Publish complete code bytes before the environment completion marker.
     await publishArtifact(temporaryArtifact, artifactPath);
