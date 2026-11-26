@@ -49,6 +49,9 @@
 pub use thruput_erc20_if::ERC20Error;
 
 /// A contract address.
+///
+/// `thruput_sdk` also exports `Address<C>`, an address typed by its contract's client. A module
+/// that glob-imports both crates imports this alias by name (`use swap_if::Address;`) to use it.
 pub type Address = thruput_sdk::ContractAddress;
 /// A pair of addresses (the two tokens of a swap pair).
 pub type Addresses = [thruput_sdk::ContractAddress; 2];

@@ -1,5 +1,6 @@
 //! The factory contract implementation.
 
+use swap_if::Address;
 use swap_if::*;
 use thruput_erc20_if::{ERC20Client, ERC20Error};
 use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;

@@ -1,6 +1,7 @@
 //! The contract implementing SwapRequestHandler
 
 use crate::library::*;
+use swap_if::Address;
 use swap_if::*;
 use swap_pair::Pair;
 use thruput_erc20_if::ERC20Client;

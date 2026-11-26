@@ -84,7 +84,7 @@ For a live setup:
    and your application's maximum age in seconds.
 
 The relay revision uses SDK 0.51.1 and CLI 0.30.0; this example uses the workspace's
-SDK 0.62.0 and requires CLI 0.47.0 or newer. The local tests check the read ABI,
+SDK 0.64.0 and requires CLI 0.48.0 or newer. The local tests check the read ABI,
 not live runtime compatibility. A live deployment needs relay artifacts and
 tooling compatible with the chosen network; do not assume the older build can
 run on a newer node.

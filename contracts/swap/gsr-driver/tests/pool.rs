@@ -5,6 +5,7 @@
 //! price it follows is the pool's, and that a later block's requests wait for an earlier one's.
 
 use swap_gsr_driver::*;
+use swap_if::Address;
 use swap_if::*;
 use swap_pair::{from_token, to_token};
 use thruput_erc20_if::ERC20Client;

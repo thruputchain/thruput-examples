@@ -5,6 +5,7 @@
 //! are dequeued and performed.
 
 use crate::cfg::*;
+use swap_if::Address;
 use swap_if::*;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;

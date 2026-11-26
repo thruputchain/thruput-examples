@@ -122,10 +122,10 @@ fn sign_request(
     let key = SigningKey::from_bytes(&ALICE_SEED);
     let expiry = thruput_sdk::BlockHeight::from(expiry);
     let preimage = SignedOpPreimage {
-        network: network.clone(),
+        network: *network,
         verifying_contract: sdk_address(wallet),
         uniquifier: Uniquifier {
-            block_expiry_height: expiry.clone(),
+            block_expiry_height: expiry,
             nonce,
         },
         body,

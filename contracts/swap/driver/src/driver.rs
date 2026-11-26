@@ -6,6 +6,7 @@
 
 use crate::cfg::*;
 use batch_driver::{CrankPolicy, Queue};
+use swap_if::Address;
 use swap_if::*;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
