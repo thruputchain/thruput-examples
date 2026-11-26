@@ -85,8 +85,9 @@ npm ci
 ```
 
 Use CLI **0.48.0 or newer**, and let it select its managed runtime. Native
-contract tests need only Rust. The Counter Testkit example still needs CLI
-0.47.0 exactly; see its README.
+contract tests need only Rust. The RPC integration tests and
+[`contracts/counter-live`](contracts/counter-live/README.md) use the Rust
+crates, which still need CLI 0.47.0 exactly.
 
 For the TypeScript examples and the apps, run a local node in a separate
 terminal, and leave it running:

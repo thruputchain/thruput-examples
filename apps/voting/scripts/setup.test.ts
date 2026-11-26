@@ -43,10 +43,10 @@ function executionFailed(
 /** A send that stopped before dispatch, or with an unknown outcome. */
 function stopped(
   submission: SubmissionEvidence,
-  phase: "beforeSubmission" | "submission" | "observation",
+  outcome: "notSubmitted" | "unknown",
   cause: Error,
 ) {
-  const sent = phase !== "beforeSubmission";
+  const sent = outcome === "unknown";
   return new ThruputError(
     sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
     cause.message,
@@ -55,8 +55,8 @@ function stopped(
       ...(sent ? { context: {} } : {}),
       transaction: {
         hash: submission.transactionHash,
-        outcome: sent ? "unknown" : "notSubmitted",
-        reason: sent ? "disconnected" : "persistenceFailed",
+        outcome,
+        reason: sent ? "disconnected" : "cancelled",
         submission,
       },
     },
@@ -309,26 +309,26 @@ it("persists intent before submission and records committed failure", async () =
       ]);
       throw executionFailed(aborted, evidence);
     }),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "transactionFailed" });
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
   });
 });
 
-it.each(["beforeSubmission", "submission", "observation"] as const)(
-  "records %s without retrying",
-  async (phase) => {
+it.each(["notSubmitted", "unknown"] as const)(
+  "records a %s outcome without retrying",
+  async (outcome) => {
     const run = await createRun(directory, toBase58(evidence.networkHash));
     const submit = vi.fn(async () => {
-      throw stopped(evidence, phase, new Error("Stopped"));
+      throw stopped(evidence, outcome, new Error("Stopped"));
     });
-    await expect(record(run, "Deploy Voting", submit)).rejects.toBeInstanceOf(
-      ThruputError,
-    );
+    await expect(record(run, "Deploy Voting", submit)).rejects.toMatchObject({
+      transaction: { outcome },
+    });
     expect(submit).toHaveBeenCalledTimes(1);
     expect((await readManifest(run)).transactions[0]).toMatchObject({
-      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      status: outcome === "notSubmitted" ? "failed" : "unknown",
       hash: toBase58(evidence.transactionHash),
     });
   },
@@ -362,7 +362,7 @@ it("retains an uncertain faucet hash", async () => {
   });
   await expect(
     record(run, "Fund Voting Deployer", submit),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "fundingStopped" });
   expect(submit).toHaveBeenCalledTimes(1);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "unknown",

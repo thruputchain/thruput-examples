@@ -43,10 +43,10 @@ function executionFailed(
 /** A send that stopped before dispatch, or with an unknown outcome. */
 function stopped(
   submission: SubmissionEvidence,
-  phase: "beforeSubmission" | "submission" | "observation",
+  outcome: "notSubmitted" | "unknown",
   cause: Error,
 ) {
-  const sent = phase !== "beforeSubmission";
+  const sent = outcome === "unknown";
   return new ThruputError(
     sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
     cause.message,
@@ -55,8 +55,8 @@ function stopped(
       ...(sent ? { context: {} } : {}),
       transaction: {
         hash: submission.transactionHash,
-        outcome: sent ? "unknown" : "notSubmitted",
-        reason: sent ? "disconnected" : "persistenceFailed",
+        outcome,
+        reason: sent ? "disconnected" : "cancelled",
         submission,
       },
     },
@@ -286,9 +286,11 @@ it("saves signed evidence and intent before the SDK submission completes", async
       hash: toBase58(evidence.transactionHash),
       signed: "0x010203",
     });
-    throw stopped(evidence, "submission", new Error("Submission disconnected"));
+    throw stopped(evidence, "unknown", new Error("Submission disconnected"));
   });
-  await expect(setup(env)).rejects.toBeInstanceOf(ThruputError);
+  await expect(setup(env)).rejects.toMatchObject({
+    code: "transactionOutcomeUnknown",
+  });
   expect(mocks.deployContractAndWait).toHaveBeenCalledOnce();
   expect(mocks.executeAndWait).not.toHaveBeenCalled();
   expect((await latestRun()).manifest.transactions[0].status).toBe("unknown");
@@ -459,7 +461,7 @@ it("records a failed execution and its receipt", async () => {
     record(run, "Deploy", async () => {
       throw executionFailed(failed, evidence);
     }),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "transactionFailed" });
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),

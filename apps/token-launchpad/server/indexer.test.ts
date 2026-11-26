@@ -32,7 +32,9 @@ it("clears the history error after a later pass succeeds", async () => {
     async *iterateEventPages() {
       pass += 1;
       if (pass === 1)
-        throw new ThruputError("historyWalkFailed", "History retention no longer covers the requested range", { context: { page: {} as never } });
+        throw new ThruputError("historyWalkFailed", "History retention no longer covers the requested range", {
+          context: { page: {} as never },
+        });
       return { completedThroughBlockHeight: 5n };
     },
   } as unknown as CoreThruputClient;

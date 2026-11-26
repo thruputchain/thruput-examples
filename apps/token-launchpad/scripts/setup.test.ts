@@ -55,10 +55,10 @@ function executionFailed(
 /** A send that stopped before dispatch, or with an unknown outcome. */
 function stopped(
   submission: SubmissionEvidence,
-  phase: "beforeSubmission" | "submission" | "observation",
+  outcome: "notSubmitted" | "unknown",
   cause: Error,
 ) {
-  const sent = phase !== "beforeSubmission";
+  const sent = outcome === "unknown";
   return new ThruputError(
     sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
     cause.message,
@@ -67,8 +67,8 @@ function stopped(
       ...(sent ? { context: {} } : {}),
       transaction: {
         hash: submission.transactionHash,
-        outcome: sent ? "unknown" : "notSubmitted",
-        reason: sent ? "disconnected" : "persistenceFailed",
+        outcome,
+        reason: sent ? "disconnected" : "cancelled",
         submission,
       },
     },
@@ -624,9 +624,9 @@ const evidence = {
   signedTransaction: new Uint8Array([1, 2, 3]),
 };
 
-it.each(["beforeSubmission", "submission", "observation"] as const)(
-  "records %s without retrying",
-  async (phase) => {
+it.each(["notSubmitted", "unknown"] as const)(
+  "records a %s outcome without retrying",
+  async (outcome) => {
     const run = await createRun(root, zeroNetwork);
     const submit = vi.fn(async () => {
       const manifest = JSON.parse(
@@ -635,17 +635,17 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
       expect(manifest.transactions).toEqual([
         { label: "Deploy", status: "unknown" },
       ]);
-      throw stopped(evidence, phase, new Error("Stopped"));
+      throw stopped(evidence, outcome, new Error("Stopped"));
     });
-    await expect(record(run, "Deploy", submit)).rejects.toBeInstanceOf(
-      ThruputError,
-    );
+    await expect(record(run, "Deploy", submit)).rejects.toMatchObject({
+      transaction: { outcome },
+    });
     expect(submit).toHaveBeenCalledOnce();
     const manifest = JSON.parse(
       await readFile(join(run.directory, "manifest.json"), "utf8"),
     );
     expect(manifest.transactions[0]).toMatchObject({
-      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      status: outcome === "notSubmitted" ? "failed" : "unknown",
       hash: toBase58(evidence.transactionHash),
     });
   },
@@ -664,7 +664,7 @@ it("records a confirmed execution failure", async () => {
     record(run, "Deploy", async () => {
       throw executionFailed(receipt, evidence);
     }),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "transactionFailed" });
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),

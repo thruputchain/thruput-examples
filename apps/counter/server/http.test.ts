@@ -466,6 +466,7 @@ describe("counter signing boundary", () => {
   it("rejects changed wrappers, multiple calls, attached code, and malformed transactions", async () => {
     const { send, upstream } = await fixture();
     const valid = normal();
+    // decodeCalldata returns untyped fields; these are the wallet's execute args.
     const args = decodeCalldata(
       DefaultWalletSpec,
       "DefaultWallet",

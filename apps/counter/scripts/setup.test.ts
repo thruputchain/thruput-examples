@@ -44,10 +44,10 @@ function executionFailed(
 /** A send that stopped before dispatch, or with an unknown outcome. */
 function stopped(
   submission: SubmissionEvidence,
-  phase: "beforeSubmission" | "submission" | "observation",
+  outcome: "notSubmitted" | "unknown",
   cause: Error,
 ) {
-  const sent = phase !== "beforeSubmission";
+  const sent = outcome === "unknown";
   return new ThruputError(
     sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
     cause.message,
@@ -56,8 +56,8 @@ function stopped(
       ...(sent ? { context: {} } : {}),
       transaction: {
         hash: submission.transactionHash,
-        outcome: sent ? "unknown" : "notSubmitted",
-        reason: sent ? "disconnected" : "persistenceFailed",
+        outcome,
+        reason: sent ? "disconnected" : "cancelled",
         submission,
       },
     },
@@ -254,30 +254,88 @@ it("persists intent before submission and marks a committed abort as failed", as
       ]);
       throw executionFailed(aborted, evidence);
     }),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "transactionFailed" });
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
   });
 });
 
-it.each(["beforeSubmission", "submission", "observation"] as const)(
-  "records %s without retrying",
-  async (phase) => {
+it.each(["notSubmitted", "unknown"] as const)(
+  "records a %s outcome without retrying",
+  async (outcome) => {
     const run = await createRun(directory, toBase58(evidence.networkHash));
     const submit = vi.fn(async () => {
-      throw stopped(evidence, phase, new Error("Stopped"));
+      throw stopped(evidence, outcome, new Error("Stopped"));
     });
-    await expect(record(run, "Deploy Counter", submit)).rejects.toBeInstanceOf(
-      ThruputError,
-    );
+    await expect(record(run, "Deploy Counter", submit)).rejects.toMatchObject({
+      transaction: { outcome },
+    });
     expect(submit).toHaveBeenCalledTimes(1);
     expect((await readManifest(run)).transactions[0]).toMatchObject({
-      status: phase === "beforeSubmission" ? "failed" : "unknown",
+      status: outcome === "notSubmitted" ? "failed" : "unknown",
       hash: toBase58(evidence.transactionHash),
     });
   },
 );
+
+it("records a successful receipt whose result cannot be decoded as confirmed", async () => {
+  const run = await createRun(directory, toBase58(evidence.networkHash));
+  const error = new ThruputError(
+    "transactionResultUndecodable",
+    "Result cannot be decoded",
+    {
+      transaction: {
+        hash: evidence.transactionHash,
+        outcome: "succeeded",
+        reason: "resultUndecodable",
+        receipt,
+        submission: evidence,
+      },
+    },
+  );
+  await expect(
+    record(run, "Deploy Counter", async () => {
+      throw error;
+    }),
+  ).rejects.toBe(error);
+  expect((await readManifest(run)).transactions[0]).toMatchObject({
+    status: "confirmed",
+    hash: toBase58(evidence.transactionHash),
+  });
+});
+
+it("records stopped funding with a failed receipt as failed", async () => {
+  const run = await createRun(directory, toBase58(evidence.networkHash));
+  const failed: TransactionReceipt = {
+    ...receipt,
+    execution: { result: "abort", abortData: new Uint8Array([1]) },
+  };
+  const error = new ThruputError("fundingStopped", "Funding stopped", {
+    context: {
+      request: {
+        recipient: new Uint8Array(32),
+        clientNonce: new Uint8Array(16),
+        networkHash: evidence.networkHash,
+      },
+    },
+    transaction: {
+      hash: evidence.transactionHash,
+      outcome: "failed",
+      reason: "aborted",
+      receipt: failed,
+    },
+  });
+  await expect(
+    record(run, "Fund Counter Operator", async () => {
+      throw error;
+    }),
+  ).rejects.toBe(error);
+  expect((await readManifest(run)).transactions[0]).toMatchObject({
+    status: "failed",
+    hash: toBase58(evidence.transactionHash),
+  });
+});
 
 it("retains an uncertain faucet transaction hash", async () => {
   const run = await createRun(directory, toBase58(evidence.networkHash));
@@ -307,7 +365,7 @@ it("retains an uncertain faucet transaction hash", async () => {
   });
   await expect(
     record(run, "Fund Counter Operator", submit),
-  ).rejects.toBeInstanceOf(ThruputError);
+  ).rejects.toMatchObject({ code: "fundingStopped" });
   expect(submit).toHaveBeenCalledTimes(1);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "unknown",

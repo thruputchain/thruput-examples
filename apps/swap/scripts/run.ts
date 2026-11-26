@@ -115,7 +115,7 @@ function statusFor(error: unknown): Status {
     ? error.transaction?.outcome
     : undefined;
   if (outcome === "succeeded") return "confirmed";
-  // A transaction that was not sent cannot execute.
+  // This call did not send it, and setup never signs the same bytes again.
   if (outcome === "failed" || outcome === "notSubmitted") return "failed";
   return "unknown";
 }
