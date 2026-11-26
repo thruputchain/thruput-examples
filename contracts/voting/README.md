@@ -31,7 +31,8 @@ tests that artifact on a local node, including the largest allowed poll.
 - Each wallet, including the admin, can submit one final option per question
   while the poll is open. Questions can be answered separately.
 - All questions, answers, and totals are public. Wallet identity does not prove
-  person identity. This example does not implement secret ballots.
+  person identity. This example does not implement secret ballots;
+  [Secret ballot](../secret-ballot/README.md) does.
 
 Limits are part of the ABI: 8 questions, 2–6 options per question, 160 UTF-8 bytes
 per title, 96 per option, and 512 for the optional description. Blank titles,

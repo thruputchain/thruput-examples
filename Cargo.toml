@@ -22,6 +22,7 @@ members = [
     "contracts/multi-impl-if",
     "contracts/multi-throws",
     "contracts/oracle-consumer",
+    "contracts/secret-ballot",
     "contracts/speedex",
     "contracts/voting",
     "contracts/erc20/integration-test",
@@ -78,6 +79,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 serde_json = "1"
 hex = "0.4"
 ed25519-dalek = "3"
+curve25519-dalek = { version = "5", default-features = false }
 
 [profile.release]
 trim-paths = "all" # unstable
@@ -87,3 +89,13 @@ trim-paths = "all" # unstable
 # and well under it optimized for size.
 [profile.release.package.speedex]
 opt-level = "s"
+
+# The Secret ballot example checks four kinds of proof, each unrolled into its own hashing and
+# point sums. That is over the cap at opt-level 3, and well under it optimized for size.
+[profile.release.package.secret-ballot]
+opt-level = "s"
+
+# The Secret ballot tests make every ballot and proof with curve25519-dalek, which is slow
+# unoptimized.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
