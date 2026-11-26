@@ -5,7 +5,7 @@
  */
 import {
   hashFromBase58,
-  NativeRpcError,
+  isThruputError,
   type CoreThruputClient,
 } from "@thruputchain/client";
 
@@ -92,11 +92,12 @@ async function indexedRange(
     // A block outside the index is reported with the range the node has. A
     // missing bound is read as the cautious one: an unknown latest block
     // means wait, and an unknown oldest block proves nothing is kept.
-    const data =
-      error instanceof NativeRpcError && error.decoded.classification === "known"
-        ? error.decoded.data
-        : null;
-    if (data?.kind !== "historyUnavailable") throw error;
+    if (
+      !isThruputError(error, "nativeRpcError") ||
+      error.context.kind !== "historyUnavailable"
+    )
+      throw error;
+    const { data } = error.context;
     return {
       oldest: data.oldestIndexedBlockHeight ?? null,
       latest: data.latestIndexedBlockHeight ?? blockHeight - 1n,

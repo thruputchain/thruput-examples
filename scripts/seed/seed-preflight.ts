@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import {
   bytesEqual,
   HttpTransport,
-  NativeRpcError,
-  NativeRpcErrorCode,
+  isThruputError,
   type ThruputClient,
 } from "@thruputchain/client";
 import type { ContractAddress } from "@thruputchain/protocol";
@@ -20,8 +19,8 @@ export async function waitForView<T>(read: () => Promise<T>): Promise<T> {
       return await read();
     } catch (error) {
       if (
-        !(error instanceof NativeRpcError) ||
-        error.code !== NativeRpcErrorCode.StateHeightUnavailable ||
+        !isThruputError(error, "nativeRpcError") ||
+        error.context.kind !== "stateHeightUnavailable" ||
         Date.now() >= deadline
       )
         throw error;

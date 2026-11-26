@@ -3,15 +3,10 @@ import { mkdir, mkdtemp, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   Ed25519Signer,
-  ExecutionDecodeError,
-  ExecutionReturnUnavailableError,
-  FundingObservationError,
-  TransactionExecutionError,
-  TransactionObservationError,
-  UnsupportedRpcValue,
   assertTransactionSuccess,
   createPubkeyAccount,
   createWalletClient,
+  isThruputError,
   fromHex0x,
   toBase58,
   toHex0x,
@@ -133,40 +128,19 @@ export async function createPersona(
   return { name, address, account, wallet };
 }
 
-function receiptFor(error: unknown) {
-  if (
-    error instanceof TransactionExecutionError ||
-    error instanceof ExecutionDecodeError ||
-    error instanceof ExecutionReturnUnavailableError
-  )
-    return error.receipt;
-}
+// After signing, the client's error gives the transaction's hash and outcome.
 function statusFor(error: unknown): Status {
-  if (error instanceof FundingObservationError) return statusFor(error.cause);
-  const execution = receiptFor(error)?.execution;
-  if (execution && !(execution instanceof UnsupportedRpcValue))
-    return execution.result === "return" ? "confirmed" : "failed";
-  if (
-    error instanceof TransactionObservationError &&
-    error.phase === "beforeSubmission"
-  )
-    return "failed";
+  const outcome = isThruputError(error)
+    ? error.transaction?.outcome
+    : undefined;
+  if (outcome === "succeeded") return "confirmed";
+  // A transaction that was not sent cannot execute.
+  if (outcome === "failed" || outcome === "notSubmitted") return "failed";
   return "unknown";
 }
+
 function hashFor(error: unknown): Uint8Array | undefined {
-  if (error instanceof TransactionObservationError)
-    return error.transactionHash;
-  if (error instanceof FundingObservationError) {
-    const response = error.lastResponse;
-    return (
-      error.knownCommitment?.transactionHash ??
-      (response && !(response instanceof UnsupportedRpcValue)
-        ? response.transactionHash
-        : undefined) ??
-      hashFor(error.cause)
-    );
-  }
-  return receiptFor(error)?.transactionHash;
+  return isThruputError(error) ? error.transaction?.hash : undefined;
 }
 interface FundingResult {
   hash: Uint8Array;
@@ -208,7 +182,9 @@ export async function record<T extends ExecutionResult | FundingResult>(
     transaction.error = error instanceof Error ? error.message : String(error);
     const hash = hashFor(error);
     if (hash) transaction.hash = toBase58(hash);
-    const receipt = receiptFor(error);
+    const receipt = isThruputError(error)
+      ? error.transaction?.receipt
+      : undefined;
     if (receipt) await writeJson(receiptPath, receipt);
     throw error;
   } finally {

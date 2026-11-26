@@ -26,7 +26,8 @@ production services: do not add hardening that hides the Thruput calls.
 
 Follow the root README's Setup section. Use npm and the root `package-lock.json`.
 Node must be at least 22.13. Rust is pinned in `rust-toolchain.toml`.
-Use CLI 0.47.0 or newer and let it select its compatible managed runtime.
+Use CLI 0.48.0 or newer and let it select its compatible managed runtime.
+The Rust crates and `contracts/counter-live` still pin 0.47.0.
 
 Rust crates come from crates.io and `@thruputchain/*` packages from the public
 npm registry; neither needs credentials. Never commit tokens or keys.

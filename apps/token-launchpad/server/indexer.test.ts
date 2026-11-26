@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  HistoryWalkError,
+  ThruputError,
   toBase58,
   type CoreThruputClient,
 } from "@thruputchain/client";
@@ -32,7 +32,7 @@ it("clears the history error after a later pass succeeds", async () => {
     async *iterateEventPages() {
       pass += 1;
       if (pass === 1)
-        throw new HistoryWalkError("History retention no longer covers the requested range", {} as never);
+        throw new ThruputError("historyWalkFailed", "History retention no longer covers the requested range", { context: { page: {} as never } });
       return { completedThroughBlockHeight: 5n };
     },
   } as unknown as CoreThruputClient;

@@ -3,7 +3,6 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  NativeRpcError,
   createPubkeyAccount,
   createTransaction,
   defaultWalletAdapter,
@@ -11,6 +10,7 @@ import {
   hashSignedTransaction,
   serializeSignedTransaction,
   signTransaction,
+  ThruputError,
   toBase58,
   toHex0x,
   type TransactionReceipt,
@@ -354,8 +354,15 @@ it("does not call a transaction expired when the final history read gives no ran
   savePending(key, record);
   mocks.getChainTip.mockResolvedValue({ blockHeight: 9000n });
   // The node reports unavailable history without saying which blocks it keeps.
-  const noRange = Object.assign(Object.create(NativeRpcError.prototype), {
-    decoded: { classification: "known", data: { kind: "historyUnavailable" } },
+  const noRange = new ThruputError("nativeRpcError", "history unavailable", {
+    context: {
+      code: -32010,
+      rpcMessage: "history unavailable",
+      method: "getTransactionsByBlock",
+      raw: {},
+      kind: "historyUnavailable",
+      data: { kind: "historyUnavailable" },
+    },
   });
   mocks.getTransactionsByBlock
     .mockResolvedValueOnce({

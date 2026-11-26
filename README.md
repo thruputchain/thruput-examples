@@ -79,13 +79,14 @@ All Rust crates and `@thruputchain/*` packages are public; you need no tokens.
 
 ```sh
 rustup show
-cargo install --locked --version '>=0.47.0' thruput
+cargo install --locked --version '>=0.48.0' thruput
 thruput toolchain install
 npm ci
 ```
 
-Use CLI **0.47.0 or newer**, and let it select its managed runtime. Native
-contract tests need only Rust.
+Use CLI **0.48.0 or newer**, and let it select its managed runtime. Native
+contract tests need only Rust. The Counter Testkit example still needs CLI
+0.47.0 exactly; see its README.
 
 For the TypeScript examples and the apps, run a local node in a separate
 terminal, and leave it running:

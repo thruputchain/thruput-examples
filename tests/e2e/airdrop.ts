@@ -17,7 +17,7 @@ import {
   toBase58,
   toHex0x,
   addressFromBase58,
-  TransactionExecutionError,
+  isThruputError,
 } from "@thruputchain/client";
 import {
   ANNOUNCE_PROVIDER_EVENT,
@@ -132,7 +132,7 @@ async function checkContract(
   }
   await assert.rejects(
     () => wallet.executeAndWait(request, { timeoutMs: 60_000 }),
-    TransactionExecutionError,
+    (error) => isThruputError(error, "transactionFailed"),
   );
 }
 
@@ -180,7 +180,7 @@ async function checkExistingTokens(
         },
         { timeoutMs: 60_000 },
       ),
-    TransactionExecutionError,
+    (error) => isThruputError(error, "transactionFailed"),
   );
   await checkContract(restricted, eligible);
   const mismatchEnv = {

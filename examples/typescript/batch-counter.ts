@@ -35,11 +35,14 @@ async function batch(calls: Invocation[]) {
       account.address,
       gasAmount(10_000_000n),
       {
+        // This batch mints and forwards no auth tokens.
+        mints: [],
         calls: calls.map((call) => ({
           target: call.invoked_address,
           entrypoint: fixedBytes(call.entrypoint, 8),
           gas_limit: call.gas_limit,
           calldata: call.calldata,
+          tokens: [],
         })),
       },
     ),

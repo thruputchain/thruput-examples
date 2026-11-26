@@ -13,11 +13,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   createThruputClient,
   createWalletClient,
-  FundingObservationError,
-  TransactionExecutionError,
-  TransactionObservationError,
   toBase58,
   type TransactionReceipt,
+  ThruputError,
+  type SubmissionEvidence,
 } from "@thruputchain/client";
 import type { ContractDeployment } from "@thruputchain/client/wallet";
 import { gasAmount } from "@thruputchain/protocol";
@@ -25,6 +24,45 @@ import { loadServerConfig } from "../server/config";
 import { Counter } from "../src/contracts/generated/counter";
 import { provisionCounter, setup } from "./index";
 import { createPersona, createRun, record, type Client, type Run } from "./run";
+
+/** A transaction that committed with failed execution, as the client reports it. */
+function executionFailed(
+  receipt: TransactionReceipt,
+  submission: SubmissionEvidence,
+) {
+  return new ThruputError("transactionFailed", "Transaction execution failed", {
+    transaction: {
+      hash: submission.transactionHash,
+      outcome: "failed",
+      reason: "aborted",
+      receipt,
+      submission,
+    },
+  });
+}
+
+/** A send that stopped before dispatch, or with an unknown outcome. */
+function stopped(
+  submission: SubmissionEvidence,
+  phase: "beforeSubmission" | "submission" | "observation",
+  cause: Error,
+) {
+  const sent = phase !== "beforeSubmission";
+  return new ThruputError(
+    sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
+    cause.message,
+    {
+      cause,
+      ...(sent ? { context: {} } : {}),
+      transaction: {
+        hash: submission.transactionHash,
+        outcome: sent ? "unknown" : "notSubmitted",
+        reason: sent ? "disconnected" : "persistenceFailed",
+        submission,
+      },
+    },
+  );
+}
 
 const mocks = vi.hoisted(() => ({
   requestAirdrop: vi.fn(),
@@ -214,9 +252,9 @@ it("persists intent before submission and marks a committed abort as failed", as
       expect((await readManifest(run)).transactions).toEqual([
         { label: "Deploy Counter", status: "unknown" },
       ]);
-      throw new TransactionExecutionError(aborted, evidence);
+      throw executionFailed(aborted, evidence);
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
@@ -228,16 +266,10 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
   async (phase) => {
     const run = await createRun(directory, toBase58(evidence.networkHash));
     const submit = vi.fn(async () => {
-      throw new TransactionObservationError(
-        evidence,
-        new Error("Stopped"),
-        undefined,
-        undefined,
-        phase,
-      );
+      throw stopped(evidence, phase, new Error("Stopped"));
     });
     await expect(record(run, "Deploy Counter", submit)).rejects.toBeInstanceOf(
-      TransactionObservationError,
+      ThruputError,
     );
     expect(submit).toHaveBeenCalledTimes(1);
     expect((await readManifest(run)).transactions[0]).toMatchObject({
@@ -250,25 +282,32 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
 it("retains an uncertain faucet transaction hash", async () => {
   const run = await createRun(directory, toBase58(evidence.networkHash));
   const submit = vi.fn(async () => {
-    throw new FundingObservationError(
-      {
-        recipient: new Uint8Array(32),
-        clientNonce: new Uint8Array(16),
-        networkHash: evidence.networkHash,
+    throw new ThruputError("fundingStopped", "Funding stopped", {
+      cause: new Error("Timeout"),
+      context: {
+        request: {
+          recipient: new Uint8Array(32),
+          clientNonce: new Uint8Array(16),
+          networkHash: evidence.networkHash,
+        },
+        lastResponse: {
+          attemptStatus: "pending",
+          recipient: new Uint8Array(32),
+          rawAmount: 100000000n,
+          retryAfterSeconds: 1n,
+          transactionHash: evidence.transactionHash,
+        },
       },
-      {
-        attemptStatus: "pending",
-        recipient: new Uint8Array(32),
-        rawAmount: 100000000n,
-        retryAfterSeconds: 1n,
-        transactionHash: evidence.transactionHash,
+      transaction: {
+        hash: evidence.transactionHash,
+        outcome: "unknown",
+        reason: "timeout",
       },
-      new Error("Timeout"),
-    );
+    });
   });
   await expect(
     record(run, "Fund Counter Operator", submit),
-  ).rejects.toBeInstanceOf(FundingObservationError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(submit).toHaveBeenCalledTimes(1);
   expect((await readManifest(run)).transactions[0]).toMatchObject({
     status: "unknown",

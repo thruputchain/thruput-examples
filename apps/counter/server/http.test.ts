@@ -466,13 +466,13 @@ describe("counter signing boundary", () => {
   it("rejects changed wrappers, multiple calls, attached code, and malformed transactions", async () => {
     const { send, upstream } = await fixture();
     const valid = normal();
-    const { calls } = decodeCalldata(
+    const args = decodeCalldata(
       DefaultWalletSpec,
       "DefaultWallet",
       "execute",
       valid.invocation.calldata,
       buildNamedCodecs(DefaultWalletSpec.type_defs),
-    ) as { calls: default_wallet.v0_1.$interface.WalletCall[] };
+    ) as unknown as DefaultWallet.v0_1.ExecuteArgs;
     const variants = [
       {
         ...valid,
@@ -487,9 +487,7 @@ describe("counter signing boundary", () => {
         invocation: DefaultWallet.v0_1.execute.invocation(
           account.address,
           gas,
-          {
-            calls: [...calls, ...calls],
-          },
+          { ...args, calls: [...args.calls, ...args.calls] },
         ),
       },
       {

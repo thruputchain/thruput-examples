@@ -20,9 +20,9 @@ import {
   hashContract,
   toBase58,
   toHex0x,
-  TransactionObservationError,
-  TransactionExecutionError,
   type TransactionReceipt,
+  ThruputError,
+  type SubmissionEvidence,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
@@ -35,6 +35,45 @@ import { SwapFactory } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
 import { setup as main, publishArtifact } from "./index";
 import { createPersona, createRun, record, type Client } from "./run";
+
+/** A transaction that committed with failed execution, as the client reports it. */
+function executionFailed(
+  receipt: TransactionReceipt,
+  submission: SubmissionEvidence,
+) {
+  return new ThruputError("transactionFailed", "Transaction execution failed", {
+    transaction: {
+      hash: submission.transactionHash,
+      outcome: "failed",
+      reason: "aborted",
+      receipt,
+      submission,
+    },
+  });
+}
+
+/** A send that stopped before dispatch, or with an unknown outcome. */
+function stopped(
+  submission: SubmissionEvidence,
+  phase: "beforeSubmission" | "submission" | "observation",
+  cause: Error,
+) {
+  const sent = phase !== "beforeSubmission";
+  return new ThruputError(
+    sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
+    cause.message,
+    {
+      cause,
+      ...(sent ? { context: {} } : {}),
+      transaction: {
+        hash: submission.transactionHash,
+        outcome: sent ? "unknown" : "notSubmitted",
+        reason: sent ? "disconnected" : "persistenceFailed",
+        submission,
+      },
+    },
+  );
+}
 const setupDevnet = (env = process.env) => main(env, "devnet");
 
 const mocks = vi.hoisted(() => ({
@@ -150,14 +189,22 @@ beforeEach(async () => {
     return {
       transactionHash: new Uint8Array(32),
       address: deployment.address,
-      receipt: { blockHeight: 7n, execution: { result: "return" } },
+      receipt: {
+        transactionHash: new Uint8Array(32),
+        blockHeight: 7n,
+        execution: { result: "return" },
+      },
     };
   });
   mocks.executeAndWait.mockImplementation(async () => {
     phases.push("execute");
     return {
       transactionHash: new Uint8Array(32),
-      receipt: { blockHeight: 2n, execution: { result: "return" } },
+      receipt: {
+        transactionHash: new Uint8Array(32),
+        blockHeight: 2n,
+        execution: { result: "return" },
+      },
     };
   });
   const deployments = [address(1), address(2), factory, router];
@@ -557,10 +604,10 @@ describe("infrastructure-only swap provisioning", () => {
     const deploy = mocks.deployContractAndWait.getMockImplementation()!;
     mocks.deployContractAndWait.mockImplementation(async (...args) => {
       if (mocks.deployContractAndWait.mock.calls.length === 4)
-        throw new TransactionObservationError(evidence, new Error("Timeout"));
+        throw stopped(evidence, "submission", new Error("Timeout"));
       return deploy(...args);
     });
-    await expect(main()).rejects.toBeInstanceOf(TransactionObservationError);
+    await expect(main()).rejects.toBeInstanceOf(ThruputError);
     expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(4);
     expect(mocks.getStorage).not.toHaveBeenCalled();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
@@ -642,16 +689,10 @@ it.each(["beforeSubmission", "submission", "observation"] as const)(
       expect(manifest.transactions).toEqual([
         { label: "Deploy", status: "unknown" },
       ]);
-      throw new TransactionObservationError(
-        evidence,
-        new Error("Stopped"),
-        undefined,
-        undefined,
-        phase,
-      );
+      throw stopped(evidence, phase, new Error("Stopped"));
     });
     await expect(record(run, "Deploy", submit)).rejects.toBeInstanceOf(
-      TransactionObservationError,
+      ThruputError,
     );
     expect(submit).toHaveBeenCalledOnce();
     expect(run.manifest.transactions[0]).toMatchObject({
@@ -671,9 +712,9 @@ it("records committed failure", async () => {
   };
   await expect(
     record(run, "Deploy", async () => {
-      throw new TransactionExecutionError(receipt, evidence);
+      throw executionFailed(receipt, evidence);
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),

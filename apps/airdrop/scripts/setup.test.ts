@@ -15,15 +15,53 @@ import {
   createThruputClient,
   createWalletClient,
   toBase58,
-  TransactionExecutionError,
-  TransactionObservationError,
   type SubmissionEvidence,
   type TransactionReceipt,
+  ThruputError,
 } from "@thruputchain/client";
 import { ERC20, ERC20Metadata } from "@thruputchain/client/contracts";
 import { Airdrop } from "../src/contracts/generated/airdrop";
 import { setup, storageFunding } from "./index";
 import { createRun, record } from "./run";
+
+/** A transaction that committed with failed execution, as the client reports it. */
+function executionFailed(
+  receipt: TransactionReceipt,
+  submission: SubmissionEvidence,
+) {
+  return new ThruputError("transactionFailed", "Transaction execution failed", {
+    transaction: {
+      hash: submission.transactionHash,
+      outcome: "failed",
+      reason: "aborted",
+      receipt,
+      submission,
+    },
+  });
+}
+
+/** A send that stopped before dispatch, or with an unknown outcome. */
+function stopped(
+  submission: SubmissionEvidence,
+  phase: "beforeSubmission" | "submission" | "observation",
+  cause: Error,
+) {
+  const sent = phase !== "beforeSubmission";
+  return new ThruputError(
+    sent ? "transactionOutcomeUnknown" : "transactionNotSubmitted",
+    cause.message,
+    {
+      cause,
+      ...(sent ? { context: {} } : {}),
+      transaction: {
+        hash: submission.transactionHash,
+        outcome: sent ? "unknown" : "notSubmitted",
+        reason: sent ? "disconnected" : "persistenceFailed",
+        submission,
+      },
+    },
+  );
+}
 
 const mocks = vi.hoisted(() => ({
   getBlockByHeight: vi.fn(),
@@ -248,12 +286,9 @@ it("saves signed evidence and intent before the SDK submission completes", async
       hash: toBase58(evidence.transactionHash),
       signed: "0x010203",
     });
-    throw new TransactionObservationError(
-      evidence,
-      new Error("Submission disconnected"),
-    );
+    throw stopped(evidence, "submission", new Error("Submission disconnected"));
   });
-  await expect(setup(env)).rejects.toBeInstanceOf(TransactionObservationError);
+  await expect(setup(env)).rejects.toBeInstanceOf(ThruputError);
   expect(mocks.deployContractAndWait).toHaveBeenCalledOnce();
   expect(mocks.executeAndWait).not.toHaveBeenCalled();
   expect((await latestRun()).manifest.transactions[0].status).toBe("unknown");
@@ -422,9 +457,9 @@ it("records a failed execution and its receipt", async () => {
   };
   await expect(
     record(run, "Deploy", async () => {
-      throw new TransactionExecutionError(failed, evidence);
+      throw executionFailed(failed, evidence);
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),
