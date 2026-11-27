@@ -4,7 +4,7 @@
 .vite/
 dist/
 public/contract-artifacts/*.json
-!public/contract-artifacts/BHfqrDnWrT259PjciruPMzWQuHRS8c5ebK34PqpAtLig.json
+!public/contract-artifacts/2GqTAdaseVQvUzR8FpxDHP3HxuEZe4VsguMVAw2ecH3N.json
 node_modules/
 *.sqlite
 *.sqlite-shm

@@ -103,9 +103,10 @@ do not change. Keep the Railway domain available until the custom domain works.
 ## Release and wallet checks
 
 The current contracts use devnet network ID
-`DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT` and wire format `14.1.1`.
-The earlier network was reset. Use the addresses in `devnet.json`, not addresses
-from before the reset. Starting or redeploying a web service reuses these contracts.
+`DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT` and wire format `14.7.0`. They
+were released with CLI 0.48.0 for client 0.29.0, whose wallet calls need node
+0.1.37 or later. Use the addresses in `devnet.json`, not addresses from an
+earlier release. Starting or redeploying a web service reuses these contracts.
 
 1. Confirm all five app services have a successful deployment. A web-service
    redeploy reuses its configured contracts; it does not deploy new contracts.
