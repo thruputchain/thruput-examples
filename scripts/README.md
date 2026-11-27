@@ -125,6 +125,7 @@ npm run test:voting
 npm run test:token-launchpad
 npm run test:swap
 npm run test:launchpad-swap
+npm run test:swap-users
 npm run test:airdrop
 npm run test:seed
 npm run test:batching
@@ -146,6 +147,11 @@ search, a swap, liquidity added across a reload, and liquidity removed.
 `test:swap` checks both setup modes, first-pool creation from the public LP
 artifact, liquidity processing, and swap balances on an isolated nonzero-network
 node. It also checks network-pin rejection without replacing existing output.
+`test:swap-users` is a `node:test` scenario on a managed
+[`@thruputchain/testkit`](https://www.npmjs.com/package/@thruputchain/testkit)
+node. Alice provides liquidity and Bob swaps. Carol's swap fails on slippage
+without moving her tokens, and her duplicate pair creation is recorded as a
+failed transaction.
 Seeding checks fresh assets on rerun, balances, reserves, and indexing. Batching
 checks atomic rollback, storage top-ups, and pool operations. Freighter browser
 approval flows require separate acceptance testing.
