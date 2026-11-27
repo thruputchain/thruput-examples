@@ -21,6 +21,7 @@ members = [
     "contracts/multi-impl",
     "contracts/multi-impl-if",
     "contracts/multi-throws",
+    "contracts/mutual-credit",
     "contracts/oracle-consumer",
     "contracts/speedex",
     "contracts/voting",
