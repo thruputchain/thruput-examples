@@ -88,7 +88,9 @@ describe("live swap relationship preflight", () => {
     { kind: "bytestring", bytes: new Uint8Array(31) },
     { kind: "nonnegativeInt", value: 2n },
   ])("rejects missing or unsupported storage", async (item) => {
-    const getStorage = vi.fn().mockResolvedValue({ stateBlockHeight: 1n, item });
+    const getStorage = vi
+      .fn()
+      .mockResolvedValue({ stateBlockHeight: 1n, item });
     await expect(
       verifySwapRelationship({ getStorage }, factory, router),
     ).rejects.toThrow("unsupported storage layout");

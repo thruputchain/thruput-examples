@@ -8,25 +8,27 @@ import {
   bytesEqual,
   createThruputClient,
   createPubkeyAccount,
-  createWalletClient,
   fixedBytes,
   fromHex0x,
   hashContract,
   hashFromBase58,
+  isThruputError,
   defineCluster,
   parseAddress,
   Ed25519Signer,
   toBase58,
   toHex0x,
+  type ContractCall,
 } from "@thruputchain/client";
 import {
   ContractType,
   gasAmount,
   NATIVE_TOKEN_ADDRESS,
+  networkHash,
   type Contract,
   type ContractAddress,
-  type Invocation,
 } from "@thruputchain/protocol";
+import { withScenario } from "@thruputchain/testkit";
 import {
   StandardTokenFactory,
   standard_token_factory_if,
@@ -47,7 +49,6 @@ import {
   seedTransport,
   verifySwapRelationship,
   SeedError,
-  waitForView,
 } from "./seed-preflight.ts";
 import { assertLiquidityMint } from "./seed-liquidity.ts";
 
@@ -106,14 +107,13 @@ export async function seed(
     const rpcUrl = validateLocalRpcUrl(
       env.THRUPUT_RPC_URL ?? launch.VITE_THRUPUT_RPC_URL!,
     );
-    const client = await createThruputClient({
-      cluster: defineCluster({
-        name: "local",
-        rpcUrl,
-        capabilities: ["airdrop"],
-      }),
-      transport: seedTransport(rpcUrl),
+    const cluster = defineCluster({
+      name: "local",
+      rpcUrl,
+      capabilities: ["airdrop"] as const,
     });
+    const transport = seedTransport(rpcUrl);
+    const client = await createThruputClient({ cluster, transport });
     const network = toBase58(client.network.networkHash);
     for (const config of [launch, ...(swap ? [swap] : [])]) {
       if (
@@ -175,229 +175,272 @@ export async function seed(
       );
     }
 
+    // A fresh in-memory signer. Testkit keeps its report in memory only: the
+    // seed saves no key or journal, and a new run creates new assets.
     const account = createPubkeyAccount({
       signer: Ed25519Signer.fromSeed(randomBytes(32)),
-    });
-    const wallet = createWalletClient({
-      client,
-      account,
-      onSigned: (evidence) => {
-        console.log(
-          `Submitting ${step}: ${toBase58(evidence.transactionHash)}`,
-        );
-      },
     });
     console.log(
       `Fresh ${phase} seed. Recipient: ${toBase58(recipient)}. Tool account: ${toBase58(account.address)}`,
     );
-    let height = 0n;
-    async function fundAccount() {
-      step = "fund seed account";
-      // Two token deployments, optional pool storage, and a scheduling reserve.
-      const minimum =
-        2n * (config.required_token_funding + RESERVE) +
-        (poolConfig?.funding.recommended ?? 0n) * 3n +
-        RESERVE * 10n;
-      let balance = (await wallet.getBalance()).rawBalance;
-      while (balance < minimum) {
-        const funding = await wallet.requestAirdrop({ timeoutMs: 60_000 });
-        console.log(`Airdrop: ${toBase58(funding.transactionHash)}`);
-        const next = (await wallet.getBalance()).rawBalance;
-        if (next <= balance)
-          throw new SeedError(
-            "Confirmed native funding is not visible. Inspect the original request before continuing.",
+    const { tokens, pool } = await withScenario(
+      {
+        network: {
+          cluster: {
+            ...cluster,
+            // The app's configured network, checked against this node above.
+            networkHash: networkHash(
+              hashFromBase58(launch.VITE_THRUPUT_NETWORK_ID!),
+            ),
+          },
+          transport,
+        },
+        accounts: { seed: account },
+        // Awaited before broadcast, so the hash is printed even if the response is lost.
+        onSigned: (_, evidence) => {
+          console.log(
+            `Submitting ${step}: ${toBase58(evidence.transactionHash)}`,
           );
-        balance = next;
-      }
-    }
-    async function execute(
-      name: string,
-      invocation: Invocation,
-      contractsToDeploy: Contract[] = [],
-    ) {
-      step = name;
-      const { receipt, transactionHash } = await wallet.executeAndWait(
-        { invocation, gasLimit: GAS, contractsToDeploy },
-        { timeoutMs: 60_000 },
-      );
-      console.log(`Completed ${name}: ${toBase58(transactionHash)}`);
-      height = receipt.blockHeight;
-      return receipt;
-    }
-    const balance = async (token: ContractAddress, owner: ContractAddress) =>
-      (
-        await waitForView(() =>
-          ERC20.v0_1.getBalanceOf.view({
-            client,
-            address: token,
-            args: { addr: owner },
-            minStateBlockHeight: height,
-          }),
-        )
-      ).value;
+        },
+      },
+      async (scenario) => {
+        const actor = scenario.actor("seed");
+        async function fundAccount() {
+          step = "fund seed account";
+          // Two token deployments, optional pool storage, and a scheduling reserve.
+          const minimum =
+            2n * (config.required_token_funding + RESERVE) +
+            (poolConfig?.funding.recommended ?? 0n) * 3n +
+            RESERVE * 10n;
+          let balance = (await actor.wallet.getBalance()).rawBalance;
+          while (balance < minimum) {
+            const funding = await actor.fund({ timeoutMs: 60_000 });
+            console.log(`Airdrop: ${toBase58(funding.transactionHash)}`);
+            const next = (await actor.wallet.getBalance()).rawBalance;
+            if (next <= balance)
+              throw new SeedError(
+                "Confirmed native funding is not visible. Inspect the original request before continuing.",
+              );
+            balance = next;
+          }
+        }
+        async function execute(
+          name: string,
+          call: ContractCall,
+          contractsToDeploy: Contract[] = [],
+        ) {
+          step = name;
+          const { receipt, transactionHash } = await actor.call([call], {
+            contractsToDeploy,
+            wait: { timeoutMs: 60_000 },
+          });
+          console.log(`Completed ${name}: ${toBase58(transactionHash)}`);
+          return receipt;
+        }
+        // Testkit reads state that includes every confirmed seed transaction.
+        const balance = async (
+          token: ContractAddress,
+          owner: ContractAddress,
+        ) =>
+          (
+            await scenario.view(
+              ERC20.v0_1.getBalanceOf.viewRequest({
+                address: token,
+                args: { addr: owner },
+              }),
+            )
+          ).value;
 
-    async function createTokens() {
-      const tokens: ContractAddress[] = [];
-      for (const [name, symbol] of [
-        ["Thruput Demo Dollar", "gUSD"],
-        ["Thruput Demo Euro", "gEUR"],
-      ] as const) {
-        const nonce = fixedBytes(randomBytes(32), 32);
-        const address = (
-          await StandardTokenFactory.v0_1.predictToken.view({
-            client,
-            address: factory,
-            args: { creator: account.address, nonce },
-          })
-        ).value;
-        await execute(
-          `fund-${symbol}`,
-          ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
-            receiver: address,
-            amount: config.required_token_funding + RESERVE,
-          }),
-        );
-        const holder = poolConfig ? account.address : recipient;
-        const receipt = await execute(
-          `create-${symbol}`,
-          StandardTokenFactory.v0_1.createToken.invocation(factory, GAS, {
-            nonce,
-            administrator: recipient,
-            initialHolder: holder,
-            initialSupply: SUPPLY,
-            name,
-            symbol,
-            decimals: 6n,
-          }),
-          [tokenCode],
-        );
-        const created =
-          standard_token_factory_if.v0_1.events.TokenCreated.singleFromReceipt(
-            receipt,
-            { address: factory },
+        async function createTokens() {
+          const tokens: ContractAddress[] = [];
+          for (const [name, symbol] of [
+            ["Thruput Demo Dollar", "gUSD"],
+            ["Thruput Demo Euro", "gEUR"],
+          ] as const) {
+            const nonce = fixedBytes(randomBytes(32), 32);
+            const address = (
+              await scenario.view(
+                StandardTokenFactory.v0_1.predictToken.viewRequest({
+                  address: factory,
+                  args: { creator: account.address, nonce },
+                }),
+              )
+            ).value;
+            await execute(
+              `fund-${symbol}`,
+              ERC20.v0_1.transfer.call({
+                address: NATIVE_TOKEN_ADDRESS,
+                gasLimit: GAS,
+                args: {
+                  receiver: address,
+                  amount: config.required_token_funding + RESERVE,
+                },
+              }),
+            );
+            const holder = poolConfig ? account.address : recipient;
+            const receipt = await execute(
+              `create-${symbol}`,
+              StandardTokenFactory.v0_1.createToken.call({
+                address: factory,
+                gasLimit: GAS,
+                args: {
+                  nonce,
+                  administrator: recipient,
+                  initialHolder: holder,
+                  initialSupply: SUPPLY,
+                  name,
+                  symbol,
+                  decimals: 6n,
+                },
+              }),
+              [tokenCode],
+            );
+            const created =
+              standard_token_factory_if.v0_1.events.TokenCreated.singleFromReceipt(
+                receipt,
+                { address: factory },
+              );
+            if (
+              !bytesEqual(created.topics.token, address) ||
+              !bytesEqual(created.topics.creator, account.address) ||
+              !bytesEqual(created.fields.administrator, recipient) ||
+              !bytesEqual(created.fields.initial_holder, holder) ||
+              created.fields.initial_supply !== SUPPLY
+            )
+              throw new SeedError("Token creation evidence mismatch");
+            if (
+              (
+                await scenario.view(
+                  ERC20Metadata.v0_1.symbol.viewRequest({ address }),
+                )
+              ).value !== symbol ||
+              (
+                await scenario.view(
+                  ERC20.v0_1.totalSupply.viewRequest({ address }),
+                )
+              ).value !== SUPPLY ||
+              (await balance(address, holder)) !== SUPPLY
+            )
+              throw new SeedError("Token state mismatch");
+            tokens.push(address);
+            console.log(`${symbol}: ${toBase58(address)}`);
+          }
+          return tokens;
+        }
+        async function createPool(tokens: ContractAddress[]) {
+          if (!poolConfig) return;
+          const [tokenA, tokenB] = tokens as [ContractAddress, ContractAddress];
+          await execute(
+            "approve-pool-funding",
+            ERC20.v0_1.adjustAllowance.call({
+              address: NATIVE_TOKEN_ADDRESS,
+              gasLimit: GAS,
+              args: {
+                spender: poolConfig.factory,
+                difference: poolConfig.funding.recommended * 3n,
+              },
+            }),
           );
-        if (
-          !bytesEqual(created.topics.token, address) ||
-          !bytesEqual(created.topics.creator, account.address) ||
-          !bytesEqual(created.fields.administrator, recipient) ||
-          !bytesEqual(created.fields.initial_holder, holder) ||
-          created.fields.initial_supply !== SUPPLY
-        )
-          throw new SeedError("Token creation evidence mismatch");
-        const options = { client, address, minStateBlockHeight: height };
-        if (
-          (await waitForView(() => ERC20Metadata.v0_1.symbol.view(options)))
-            .value !== symbol ||
-          (await waitForView(() => ERC20.v0_1.totalSupply.view(options)))
-            .value !== SUPPLY ||
-          (await balance(address, holder)) !== SUPPLY
-        )
-          throw new SeedError("Token state mismatch");
-        tokens.push(address);
-        console.log(`${symbol}: ${toBase58(address)}`);
-      }
-      return tokens;
-    }
-    async function createPool(tokens: ContractAddress[]) {
-      if (!poolConfig) return;
-      const [tokenA, tokenB] = tokens as [ContractAddress, ContractAddress];
-      await execute(
-        "approve-pool-funding",
-        ERC20.v0_1.adjustAllowance.invocation(NATIVE_TOKEN_ADDRESS, GAS, {
-          spender: poolConfig.factory,
-          difference: poolConfig.funding.recommended * 3n,
-        }),
-      );
-      await execute(
-        "create-pair",
-        SwapFactory.v0_1.createPair.invocation(poolConfig.factory, GAS, {
-          tokenA,
-          tokenB,
-          funding: poolConfig.funding.recommended,
-        }),
-        [poolConfig.code],
-      );
-      const options = {
-        client,
-        address: poolConfig.factory,
-        args: { tokenA, tokenB },
-        minStateBlockHeight: height,
-      };
-      const pool = (
-        await waitForView(() => SwapFactory.v0_1.poolAddresses.view(options))
-      ).value;
-      const pair = (
-        await waitForView(() => SwapFactory.v0_1.getPair.view(options))
-      ).value;
-      if (!pair || !bytesEqual(pair, pool.handler))
-        throw new SeedError("Created pool address mismatch");
-      for (const token of tokens)
-        await execute(
-          "approve-liquidity",
-          ERC20.v0_1.adjustAllowance.invocation(token, GAS, {
-            spender: pool.handler,
-            difference: LIQUIDITY,
-          }),
-        );
-      const queued = await execute(
-        "add-liquidity",
-        SwapRouter.v0_1.addLiquidity.invocation(poolConfig.router, GAS, {
-          tokenA,
-          tokenB,
-          amountsDesired: [LIQUIDITY, LIQUIDITY],
-          amountsMin: [LIQUIDITY, LIQUIDITY],
-          recipient,
-        }),
-      );
-      const accepted =
-        batch_driver.v0_1.events.RequestAccepted.singleFromReceipt(queued, {
-          address: pool.driver,
-        });
-      console.log(`Liquidity request: ${toHex0x(accepted.topics.request_id)}`);
-      const receipt = await execute(
-        "process-liquidity",
-        SwapDriver.v0_1.processRequests.invocation(pool.driver, GAS),
-      );
-      assertLiquidityMint(
-        receipt,
-        pool.handler,
-        accepted.topics.request_id,
-        account.address,
-        recipient,
-      );
-      const state = (
-        await waitForView(() =>
-          SwapHandler.v0_1.poolState.view({
-            client,
-            address: pool.handler,
-            minStateBlockHeight: height,
-          }),
-        )
-      ).value;
-      if (
-        state.reserves.some((reserve) => reserve !== LIQUIDITY) ||
-        (await balance(pool.liquidity_token, recipient)) <= 0n
-      )
-        throw new SeedError("Pool reserves or LP balance mismatch");
-      return pool;
-    }
-    async function distributeTokens(tokens: ContractAddress[]) {
-      for (const token of tokens)
-        await execute(
-          "distribute-tokens",
-          ERC20.v0_1.transfer.invocation(token, GAS, {
-            receiver: recipient,
-            amount: SUPPLY - LIQUIDITY,
-          }),
-        );
-      for (const token of tokens)
-        if ((await balance(token, recipient)) !== SUPPLY - LIQUIDITY)
-          throw new SeedError("Recipient token balance mismatch");
-    }
-    await fundAccount();
-    const tokens = await createTokens();
-    const pool = await createPool(tokens);
-    if (pool) await distributeTokens(tokens);
+          await execute(
+            "create-pair",
+            SwapFactory.v0_1.createPair.call({
+              address: poolConfig.factory,
+              gasLimit: GAS,
+              args: { tokenA, tokenB, funding: poolConfig.funding.recommended },
+            }),
+            [poolConfig.code],
+          );
+          const pairArgs = {
+            address: poolConfig.factory,
+            args: { tokenA, tokenB },
+          };
+          const pool = (
+            await scenario.view(
+              SwapFactory.v0_1.poolAddresses.viewRequest(pairArgs),
+            )
+          ).value;
+          const pair = (
+            await scenario.view(SwapFactory.v0_1.getPair.viewRequest(pairArgs))
+          ).value;
+          if (!pair || !bytesEqual(pair, pool.handler))
+            throw new SeedError("Created pool address mismatch");
+          for (const token of tokens)
+            await execute(
+              "approve-liquidity",
+              ERC20.v0_1.adjustAllowance.call({
+                address: token,
+                gasLimit: GAS,
+                args: { spender: pool.handler, difference: LIQUIDITY },
+              }),
+            );
+          const queued = await execute(
+            "add-liquidity",
+            SwapRouter.v0_1.addLiquidity.call({
+              address: poolConfig.router,
+              gasLimit: GAS,
+              args: {
+                tokenA,
+                tokenB,
+                amountsDesired: [LIQUIDITY, LIQUIDITY],
+                amountsMin: [LIQUIDITY, LIQUIDITY],
+                recipient,
+              },
+            }),
+          );
+          const accepted =
+            batch_driver.v0_1.events.RequestAccepted.singleFromReceipt(queued, {
+              address: pool.driver,
+            });
+          console.log(
+            `Liquidity request: ${toHex0x(accepted.topics.request_id)}`,
+          );
+          const receipt = await execute(
+            "process-liquidity",
+            SwapDriver.v0_1.processRequests.call({
+              address: pool.driver,
+              gasLimit: GAS,
+            }),
+          );
+          assertLiquidityMint(
+            receipt,
+            pool.handler,
+            accepted.topics.request_id,
+            account.address,
+            recipient,
+          );
+          const state = (
+            await scenario.view(
+              SwapHandler.v0_1.poolState.viewRequest({ address: pool.handler }),
+            )
+          ).value;
+          if (
+            state.reserves.some((reserve) => reserve !== LIQUIDITY) ||
+            (await balance(pool.liquidity_token, recipient)) <= 0n
+          )
+            throw new SeedError("Pool reserves or LP balance mismatch");
+          return pool;
+        }
+        async function distributeTokens(tokens: ContractAddress[]) {
+          for (const token of tokens)
+            await execute(
+              "distribute-tokens",
+              ERC20.v0_1.transfer.call({
+                address: token,
+                gasLimit: GAS,
+                args: { receiver: recipient, amount: SUPPLY - LIQUIDITY },
+              }),
+            );
+          for (const token of tokens)
+            if ((await balance(token, recipient)) !== SUPPLY - LIQUIDITY)
+              throw new SeedError("Recipient token balance mismatch");
+        }
+        await fundAccount();
+        const tokens = await createTokens();
+        const pool = await createPool(tokens);
+        if (pool) await distributeTokens(tokens);
+        return { tokens, pool };
+      },
+    );
     console.log(
       `Seed result: ${JSON.stringify({
         recipient: toBase58(recipient),
@@ -418,6 +461,11 @@ export async function seed(
     );
     // RPC errors can contain signed payloads; only print our own validation errors.
     if (error instanceof SeedError) console.error(error.message);
+    // A stopped transaction, including a faucet request, names its hash.
+    if (isThruputError(error) && error.transaction)
+      console.error(
+        `Inspect transaction ${toBase58(error.transaction.hash)} before continuing.`,
+      );
     console.error(
       "No writes will be retried. A new run creates new assets; use a fresh node to start over.",
     );
