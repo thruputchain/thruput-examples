@@ -179,6 +179,7 @@ export THRUPUT_RPC_URL=... FHE_CONTRACT=<address> FHE_SIGNER=signer.key
 cargo run -p fhe-client --features node --bin fhe-demo -- keyset         # prints the keyset id
 cargo run -p fhe-client --features node --bin fhe-demo -- nand 0 1 1
 cargo run -p fhe-client --features node --bin fhe-demo -- adder 0 1 1 0
+cargo run -p fhe-client --features node --bin fhe-demo -- decrypt 2      # any stored ciphertext
 ```
 
 ```text
@@ -192,6 +193,34 @@ The demo keyset's secret key is derived from a public phrase (`DEMO_PHRASE` in `
 that anyone can reproduce its encryptions and decryptions. **It is a demo key and protects
 nothing.** For your own data, generate a key with `SecretKey::generate(&mut Rng::from_os())`,
 upload its evaluation key to a keyset of your own, and keep the secret key to yourself.
+
+## On Futurenet
+
+The contract is deployed on Futurenet (`https://rpc.thruput.network`, network hash
+`DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT`), with the demo keyset uploaded and sealed:
+
+| | |
+| --- | --- |
+| Contract | `FWXfiB7wLxZkLCH4cvUxJ543cPRkfRVHKXYCpcC9uk4G` |
+| Deployment | `3gNACEv7jXkMvmKXjsbQwj1cp7w3aMSu4zRUrM6ziuXb` (height 490,770), funded with 100 native tokens |
+| Demo keyset | id `0`, secret key from `DEMO_PHRASE`; 2,614 upload transactions in 669 s, the last `CitEZVd6eyTDBffH8xUdMqU6WW5yoyejaQ7jueQfPaAV` |
+| NAND(1, 1) | inputs `0`, `1`, output `2`; `9G71qXY9L3zyhLe8CL4mKZTwdhV5FkkQYkR6UPy9U5Bi` (`start_gate`, 258,651 gas), `EC71AMKSqvW1b1hFUeK6RpCW7N6G4m4YyT2ZrzBvq4qJ` (crank, 996,209,303), `CALNUfkqDYeEFYxiocd4c4Qv2JYgrUPcVNKAveBAegny` (crank, 788,336,298); 7.5 s |
+| Full adder 1 + 1 + 0 | inputs `3`, `4`, `5`; sum `7`, carry `10`; 15 transactions, 36.9 s |
+
+Anyone can check the results, with no key or funds, since decryption under the demo key is
+public:
+
+```sh
+export THRUPUT_RPC_URL=https://rpc.thruput.network FHE_CONTRACT=FWXfiB7wLxZkLCH4cvUxJ543cPRkfRVHKXYCpcC9uk4G
+cargo run -p fhe-client --features node --bin fhe-demo -- decrypt 2    # ciphertext 2 decrypts to 0
+cargo run -p fhe-client --features node --bin fhe-demo -- decrypt 10   # ciphertext 10 decrypts to 1
+```
+
+To evaluate gates on the demo keyset yourself, fund a key with `thruput airdrop` and run
+`fhe-demo nand 0 X Y` as above. Each gate needs about 100 native tokens of balance to back its
+crank's gas (backing is reserved, not spent). To use your own key, upload a keyset of your own:
+the contract then needs about 83 more native tokens for its deposit, which anyone can send it.
+Futurenet can be reset, which removes the deployment.
 
 ## Limits
 

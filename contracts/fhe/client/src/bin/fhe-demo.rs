@@ -5,6 +5,7 @@
 //! fhe-demo keyset           # create, upload and seal the demo keyset; prints its id
 //! fhe-demo nand KEYSET X Y  # encrypt bits X and Y, evaluate NAND on chain, decrypt
 //! fhe-demo adder KEYSET A B C
+//! fhe-demo decrypt ID       # read a stored ciphertext and decrypt it with the demo key
 //! ```
 //!
 //! Configuration comes from the environment: `THRUPUT_RPC_URL`, `THRUPUT_NETWORK_HASH`
@@ -44,9 +45,16 @@ async fn main() {
     let contract = ContractAddress::from(
         base58::decode_fixed::<32>(&env("FHE_CONTRACT")).expect("FHE_CONTRACT is a base58 address"),
     );
-    let secret = std::fs::read_to_string(env("FHE_SIGNER")).expect("read FHE_SIGNER");
-    let secret: [u8; 32] = base58::decode_fixed::<32>(secret.trim())
-        .expect("FHE_SIGNER holds a base58 seed, as `thruput keys export NAME -y` writes");
+    // `decrypt` only reads, so it needs no key; any seed will do for its unused signer.
+    let secret: [u8; 32] = match std::env::var("FHE_SIGNER") {
+        Ok(path) => {
+            let seed = std::fs::read_to_string(path).expect("read FHE_SIGNER");
+            base58::decode_fixed::<32>(seed.trim())
+                .expect("FHE_SIGNER holds a base58 seed, as `thruput keys export NAME -y` writes")
+        }
+        Err(_) if args.first().map(String::as_str) == Some("decrypt") => [1; 32],
+        Err(_) => panic!("set FHE_SIGNER; see the program's doc comment"),
+    };
 
     if let Err(e) = run(&args, contract, secret).await {
         eprintln!("error: {e}");
@@ -130,7 +138,14 @@ async fn run(args: &[String], contract: ContractAddress, secret: [u8; 32]) -> Re
                 started.elapsed().as_secs_f64()
             );
         }
-        _ => panic!("usage: fhe-demo keyset | nand KEYSET X Y | adder KEYSET A B C"),
+        Some("decrypt") => {
+            let id: u64 = args[1].parse().expect("a ciphertext id");
+            let bit = sk.decrypt(&fhe.get_ciphertext(id).await?);
+            println!("ciphertext {id} decrypts to {}", bit as u8);
+        }
+        _ => panic!(
+            "usage: fhe-demo address | keyset | nand KEYSET X Y | adder KEYSET A B C | decrypt ID"
+        ),
     }
     Ok(())
 }
