@@ -13,6 +13,7 @@
     "start": "node --env-file-if-exists=.env.local --import tsx server/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:setup:integration": "tsx --test scripts/setup.integration.ts",
     "generate:contracts": "bash scripts/generate-contract-bindings.sh",
     "setup:local": "npm run generate:contracts && tsx scripts/index.ts --network local",
     "setup:devnet": "npm run generate:contracts && tsx scripts/index.ts --network devnet"
@@ -35,6 +36,7 @@
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
+    "@thruputchain/testkit": "0.1.0",
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
