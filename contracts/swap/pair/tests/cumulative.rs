@@ -72,8 +72,13 @@ fn cumulative_price_accumulates() {
         // Reserves were unchanged across the window, so each cumulative price
         // advances by exactly the per-block price times the elapsed blocks:
         //   price0 = (r1 << 112) / r0,  price1 = (r0 << 112) / r1.
-        let expected0 = (U256::from(r1) << 112) / U256::from(r0) * U256::from_u32(elapsed);
-        let expected1 = (U256::from(r0) << 112) / U256::from(r1) * U256::from_u32(elapsed);
+        // `U256` division is a runtime operation, so compute it in a transaction.
+        let (expected0, expected1) = etx.exec_user_tx(ALICE, move |_| {
+            (
+                (U256::from(r1) << 112) / U256::from(r0) * U256::from_u32(elapsed),
+                (U256::from(r0) << 112) / U256::from(r1) * U256::from_u32(elapsed),
+            )
+        })?;
 
         let delta0 = cum1[0] - cum0[0];
         let delta1 = cum1[1] - cum0[1];
