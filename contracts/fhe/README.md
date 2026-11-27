@@ -233,27 +233,32 @@ The contract is deployed on Futurenet (`https://rpc.thruput.network`, network ha
 
 | | |
 | --- | --- |
-| Contract | `2vbgtDg3YNFwxJXJVGmvGztZAUQAg1fK5YARdiFbMZ4X` |
-| Deployment | `Ac5bSj7vvjR9aFfqCxVdKwb2XitEEB8jK4watYRRXtdh` (height 491,828) |
-| Demo keyset | id `0`, secret key from `DEMO_PHRASE`, funded with 85.5 native tokens; 2,614 upload transactions in 668 s, the last `Hr3UFvQfwZB5vsWQ9Tgo22kexF97mp6t8D4fZJBZvTtF` |
-| NAND(1, 1) | inputs `0`, `1`, output `2`; `EfJ4TDxS8izubZ8LB1JXiuqs4mTqnQqD8mAhUYiZQcQi` (`start_gate`, 297,688 gas), `J2KT1bNF1pXAJfqJ2LDbCJqzWMecsH3cLUodLxazmHwP` (crank, 995,323,488), `9ybAB8c6cx3H2qstiEWQ6avi6iHLsQHZTpRkBdQ8M9Fy` (crank, 786,944,111); 7.3 s |
-| Full adder 1 + 1 + 0 | inputs `3`, `4`, `5`; sum `7`, carry `10`; 15 transactions, 36.9 s |
+| Contract | `4TNYZEn7tWvhdDcUtdLsxTYY4dxMfPgCnzPMYkMNuKvb`, interface `Fhe` 0.2.0 |
+| Deployment | `6Kq4SaRQeEWtSuyr45MwcJgoymYf145PZfrL6xJe4xas` (height 492,498), initialized with rates 12,000 + 10 per byte, funded with 1 native token for its own code and records |
+| Demo keyset | id `0`, secret key from `DEMO_PHRASE`, funded with 85.5 native tokens; 2,614 upload transactions with 8 in flight in 674 s, the last `2f4ZrQ1ZERxe22QsAEz4YhJCroEqt5MnzfZxTcPmcarY` |
+| NAND(1, 1) | inputs `0`, `1`, output `2`; `FmfYbL8GPg1RvssnuYKTUveeAc2ooPMLUJRPGCSwE9Gx` (`start_gate`, 336,381 gas), `3MPqGcTECZixQzRPNnDTQ1MGV7xbtTDU9d4DM23n3wLt` (crank, 996,209,427), `4PBX2gu4PrxyXy7T2s2Z4uz4VrZt6sNYcyrrwWctyQdX` (crank, 790,787,874); 7.3 s |
+| Full adder 1 + 1 + 0 | inputs `3`, `4`, `5`; sum `7`, carry `10`; 15 transactions, 36.5 s |
 
-Anyone can check the results, with no key or funds, since decryption under the demo key is
-public:
+The demo keyset's *secret key* is public, so anyone can check the results with no key or funds:
 
 ```sh
-export THRUPUT_RPC_URL=https://rpc.thruput.network FHE_CONTRACT=2vbgtDg3YNFwxJXJVGmvGztZAUQAg1fK5YARdiFbMZ4X
+export THRUPUT_RPC_URL=https://rpc.thruput.network FHE_CONTRACT=4TNYZEn7tWvhdDcUtdLsxTYY4dxMfPgCnzPMYkMNuKvb
 cargo run -p fhe-client --features node --bin fhe-demo -- decrypt 2    # ciphertext 2 decrypts to 0
 cargo run -p fhe-client --features node --bin fhe-demo -- decrypt 10   # ciphertext 10 decrypts to 1
 ```
 
-The demo keyset is its owner's: other accounts cannot store ciphertexts or start gates under it,
-since its funds pay for that storage. To compute yourself, fund a key with `thruput airdrop`,
-create a keyset of your own (`fhe-demo keyset` with your own `FHE_SIGNER` pays about 85.5 native
-tokens into it), and evaluate gates on it. Each gate's crank also needs about 100 native tokens
-of balance to back its gas (backing is reserved, not spent). Futurenet can be reset, which
-removes the deployment.
+The demo keyset's *owner account* is not public: storing under a keyset spends its funds, so only
+its owner may. To compute, bring a keyset of your own. Fund a key with `thruput airdrop`, export
+it to `.local/`, and run `fhe-demo keyset` with it as `FHE_SIGNER`, which creates and pays about
+85.5 native tokens into a keyset of yours (whose secret key is again the public demo key, unless
+you change `DEMO_PHRASE`), then `fhe-demo nand ID X Y` on it. Each crank also needs about 100
+native tokens of balance to back its gas (backing is reserved, not spent). Futurenet can be
+reset, which removes the deployment.
+
+Two earlier deployments from this branch, `FWXfiB7wLxZkLCH4cvUxJ543cPRkfRVHKXYCpcC9uk4G` and
+`2vbgtDg3YNFwxJXJVGmvGztZAUQAg1fK5YARdiFbMZ4X`, ran older interfaces (one shared balance, then
+deposits charged per upload) and are abandoned, holding 16.9 and 3.4 native tokens that nothing
+can withdraw.
 
 ## Limits
 
