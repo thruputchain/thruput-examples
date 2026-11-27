@@ -7,8 +7,8 @@ import {
   createWalletClient,
   hashContract,
   toBase58,
+  ThruputError,
   toHex0x,
-  TransactionObservationError,
   type SubmissionEvidence,
 } from "@thruputchain/client";
 import { ContractType, NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
@@ -89,10 +89,14 @@ afterEach(async () => {
 });
 
 it("logs the signed hash before an uncertain submission and stops without repeating it", async () => {
-  const error = new TransactionObservationError(
-    evidence,
-    new Error("response lost"),
-  );
+  const error = new ThruputError("transactionOutcomeUnknown", "response lost", {
+    transaction: {
+      hash: evidence.transactionHash,
+      outcome: "unknown",
+      reason: "disconnected",
+    },
+    cause: new Error("response lost"),
+  });
   mocks.executeAndWait.mockImplementation(async () => {
     const options = vi.mocked(createWalletClient).mock.calls[0]![0];
     await options.onSigned!(evidence);

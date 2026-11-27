@@ -3,8 +3,8 @@
 # Run integration (RPC-targeted) tests: ERC20's RPC tests, and Counter's live
 # Testkit test.
 #
-# Requires thruput-cli 0.47.0 or newer and a compatible hog-devnode. Counter's
-# test runs Testkit 0.47.0, so it needs CLI 0.47.0 exactly.
+# Requires thruput-cli 0.48.0 or newer and a compatible hog-devnode. Counter's
+# test runs Testkit 0.48.0, so it needs CLI 0.48.0 exactly.
 
 set -euo pipefail
 

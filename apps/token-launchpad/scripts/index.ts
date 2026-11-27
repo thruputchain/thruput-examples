@@ -48,7 +48,7 @@ type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
 // Covers a standard-token artifact of up to about 36.9 KB at the local runtime's
-// costs. The SDK 0.62.0 build is about 34.2 KB.
+// costs. The SDK 0.64.0 build is about 34.2 KB.
 const TOKEN_INITIALIZATION_BUDGET = 420_000n;
 // Leave storage reserve for allowance and recipient rows after initialization.
 const REQUIRED_TOKEN_FUNDING = 1_000_000n;

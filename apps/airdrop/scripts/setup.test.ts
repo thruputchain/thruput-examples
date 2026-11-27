@@ -14,9 +14,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   createThruputClient,
   createWalletClient,
+  ThruputError,
   toBase58,
-  TransactionExecutionError,
-  TransactionObservationError,
   type SubmissionEvidence,
   type TransactionReceipt,
 } from "@thruputchain/client";
@@ -248,12 +247,20 @@ it("saves signed evidence and intent before the SDK submission completes", async
       hash: toBase58(evidence.transactionHash),
       signed: "0x010203",
     });
-    throw new TransactionObservationError(
-      evidence,
-      new Error("Submission disconnected"),
+    throw new ThruputError(
+      "transactionOutcomeUnknown",
+      "Submission disconnected",
+      {
+        transaction: {
+          hash: evidence.transactionHash,
+          outcome: "unknown",
+          reason: "disconnected",
+        },
+        cause: new Error("Submission disconnected"),
+      },
     );
   });
-  await expect(setup(env)).rejects.toBeInstanceOf(TransactionObservationError);
+  await expect(setup(env)).rejects.toBeInstanceOf(ThruputError);
   expect(mocks.deployContractAndWait).toHaveBeenCalledOnce();
   expect(mocks.executeAndWait).not.toHaveBeenCalled();
   expect((await latestRun()).manifest.transactions[0].status).toBe("unknown");
@@ -422,9 +429,17 @@ it("records a failed execution and its receipt", async () => {
   };
   await expect(
     record(run, "Deploy", async () => {
-      throw new TransactionExecutionError(failed, evidence);
+      throw new ThruputError("transactionFailed", "Execution failed", {
+        transaction: {
+          hash: evidence.transactionHash,
+          outcome: "failed",
+          reason: "aborted",
+          receipt: failed,
+          submission: evidence,
+        },
+      });
     }),
-  ).rejects.toBeInstanceOf(TransactionExecutionError);
+  ).rejects.toBeInstanceOf(ThruputError);
   expect(run.manifest.transactions[0]).toMatchObject({
     status: "failed",
     hash: toBase58(evidence.transactionHash),

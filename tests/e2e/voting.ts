@@ -22,7 +22,7 @@ import {
   signTransaction,
   hashSignedTransaction,
   serializeSignedTransaction,
-  TransactionExecutionError,
+  isThruputError,
 } from "@thruputchain/client";
 import {
   ANNOUNCE_PROVIDER_EVENT,
@@ -415,7 +415,9 @@ async function checkContract(client: Client, address: ContractAddress) {
   async function rejects(wallet: typeof admin, invocation: Invocation) {
     await assert.rejects(
       () => send(wallet, invocation),
-      TransactionExecutionError,
+      // The receipt shows a failed execution.
+      (error: unknown) =>
+        isThruputError(error) && error.transaction?.outcome === "failed",
     );
   }
 

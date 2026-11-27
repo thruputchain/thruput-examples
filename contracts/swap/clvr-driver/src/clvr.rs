@@ -446,6 +446,14 @@ mod tests {
         SwapRequest::add_liquidity(&TRADER, [1, 1], [0, 0], &TRADER)
     }
 
+    // Pricing a trade divides `U256`s, a runtime operation the native executor answers only inside a
+    // transaction, so the tests that price trades run their bodies in one.
+    fn in_transaction(body: impl FnOnce() + core::panic::UnwindSafe) {
+        thruput_sdk::TestEnvironment::no_cost()
+            .transact(|tx| tx.call(&TRADER).run(body))
+            .assert_success();
+    }
+
     // Run `batch` through a `Clvr` against a pool that starts at `reserves`, in which the requests
     // `fails` names fail and the rest do what the model expects. Return the order.
     fn clvr_order(batch: &[SwapRequest], reserves: Amounts, fails: &[bool]) -> Vec<usize> {
@@ -575,41 +583,47 @@ mod tests {
     // The two-queue CLVR places every trade exactly where a scan of all of them would.
     #[test]
     fn two_queues_order_as_a_full_scan_does() {
-        let mut rng = Rng(0x00C1_7700_5EED);
-        for case in 0..2_000 {
-            let (batch, reserves, fails) = random_case(&mut rng);
-            assert_eq!(
-                clvr_order(&batch, reserves, &fails),
-                reference_order(&batch, reserves, &fails),
-                "case {case}: reserves {reserves:?}, batch {batch:?}, fails {fails:?}"
-            );
-        }
+        in_transaction(|| {
+            let mut rng = Rng(0x00C1_7700_5EED);
+            for case in 0..2_000 {
+                let (batch, reserves, fails) = random_case(&mut rng);
+                assert_eq!(
+                    clvr_order(&batch, reserves, &fails),
+                    reference_order(&batch, reserves, &fails),
+                    "case {case}: reserves {reserves:?}, batch {batch:?}, fails {fails:?}"
+                );
+            }
+        });
     }
 
     // Every request in the batch is handed out exactly once.
     #[test]
     fn every_request_is_chosen_once() {
-        let mut rng = Rng(0x0BA7_C4E5);
-        for _ in 0..200 {
-            let (batch, reserves, fails) = random_case(&mut rng);
-            let mut order = clvr_order(&batch, reserves, &fails);
-            order.sort_unstable();
-            assert_eq!(order, (0..batch.len()).collect::<Vec<_>>());
-        }
+        in_transaction(|| {
+            let mut rng = Rng(0x0BA7_C4E5);
+            for _ in 0..200 {
+                let (batch, reserves, fails) = random_case(&mut rng);
+                let mut order = clvr_order(&batch, reserves, &fails);
+                order.sort_unstable();
+                assert_eq!(order, (0..batch.len()).collect::<Vec<_>>());
+            }
+        });
     }
 
     // Liquidity operations, and swaps CLVR cannot price, run first and in queue order.
     #[test]
     fn unpriced_requests_run_first_in_queue_order() {
-        let batch = [
-            sell0(500),
-            add_liquidity(),
-            sell1(500),
-            SwapRequest::swap_exact_in(&TRADER, 0, 0, 0, &TRADER),
-            add_liquidity(),
-        ];
-        let order = clvr_order(&batch, [1_000_000, 1_000_000], &[false; 5]);
-        assert_eq!(&order[..3], &[1, 3, 4]);
+        in_transaction(|| {
+            let batch = [
+                sell0(500),
+                add_liquidity(),
+                sell1(500),
+                SwapRequest::swap_exact_in(&TRADER, 0, 0, 0, &TRADER),
+                add_liquidity(),
+            ];
+            let order = clvr_order(&batch, [1_000_000, 1_000_000], &[false; 5]);
+            assert_eq!(&order[..3], &[1, 3, 4]);
+        });
     }
 
     // A sandwich -- a buy ahead of the victim's, and a sell behind it -- comes apart. From p₀ every
@@ -617,47 +631,53 @@ mod tests {
     // attacker's front-run, which needed to go first, goes last.
     #[test]
     fn a_sandwich_comes_apart() {
-        let reserves = [1_000_000_000, 1_000_000_000];
-        let front_run = sell1(20_000_000);
-        let victim = sell1(5_000_000);
-        let back_run = sell0(20_000_000);
+        in_transaction(|| {
+            let reserves = [1_000_000_000, 1_000_000_000];
+            let front_run = sell1(20_000_000);
+            let victim = sell1(5_000_000);
+            let back_run = sell0(20_000_000);
 
-        let batch = [front_run, victim, back_run];
-        let order = clvr_order(&batch, reserves, &[false; 3]);
-        assert_eq!(
-            order,
-            vec![1, 2, 0],
-            "victim, then the back-run, then the front-run"
-        );
+            let batch = [front_run, victim, back_run];
+            let order = clvr_order(&batch, reserves, &[false; 3]);
+            assert_eq!(
+                order,
+                vec![1, 2, 0],
+                "victim, then the back-run, then the front-run"
+            );
 
-        // ... and the pool's price strays less than it would have in the attacker's order.
-        assert!(volatility(&batch, reserves, &order) < volatility(&batch, reserves, &[0, 1, 2]));
+            // ... and the pool's price strays less than it would have in the attacker's order.
+            assert!(
+                volatility(&batch, reserves, &order) < volatility(&batch, reserves, &[0, 1, 2])
+            );
+        });
     }
 
     // Opposing flow is interleaved so that the price oscillates tightly around p₀, where queue
     // order would run it far off in one direction and then back.
     #[test]
     fn opposing_flow_is_interleaved() {
-        let reserves = [1_000_000_000, 1_000_000_000];
-        let batch = [
-            sell0(10_000_000),
-            sell0(10_000_000),
-            sell0(10_000_000),
-            sell1(10_000_000),
-            sell1(10_000_000),
-            sell1(10_000_000),
-        ];
-        let order = clvr_order(&batch, reserves, &[false; 6]);
+        in_transaction(|| {
+            let reserves = [1_000_000_000, 1_000_000_000];
+            let batch = [
+                sell0(10_000_000),
+                sell0(10_000_000),
+                sell0(10_000_000),
+                sell1(10_000_000),
+                sell1(10_000_000),
+                sell1(10_000_000),
+            ];
+            let order = clvr_order(&batch, reserves, &[false; 6]);
 
-        let direction = |k: usize| k < 3;
-        assert!(
-            order.windows(2).all(|w| direction(w[0]) != direction(w[1])),
-            "{order:?} alternates directions"
-        );
-        assert!(
-            volatility(&batch, reserves, &order)
-                < volatility(&batch, reserves, &[0, 1, 2, 3, 4, 5])
-        );
+            let direction = |k: usize| k < 3;
+            assert!(
+                order.windows(2).all(|w| direction(w[0]) != direction(w[1])),
+                "{order:?} alternates directions"
+            );
+            assert!(
+                volatility(&batch, reserves, &order)
+                    < volatility(&batch, reserves, &[0, 1, 2, 3, 4, 5])
+            );
+        });
     }
 
     // The model's amounts are the handler's.
@@ -680,14 +700,16 @@ mod tests {
             q + 1
         }
 
-        let mut rng = Rng(0xFEE5);
-        for _ in 0..1_000 {
-            let r = [rng.amount(1 << 80), rng.amount(1 << 80)];
-            let a = rng.amount(r[0]);
-            assert_eq!(amount_out(a, r[0], r[1]), Some(get_amount_out(a, r)));
+        in_transaction(|| {
+            let mut rng = Rng(0xFEE5);
+            for _ in 0..1_000 {
+                let r = [rng.amount(1 << 80), rng.amount(1 << 80)];
+                let a = rng.amount(r[0]);
+                assert_eq!(amount_out(a, r[0], r[1]), Some(get_amount_out(a, r)));
 
-            let b = rng.amount(r[1] / 20).min(r[1] / 2).max(1);
-            assert_eq!(amount_in(b, r[0], r[1]), Some(get_amount_in(b, r)));
-        }
+                let b = rng.amount(r[1] / 20).min(r[1] / 2).max(1);
+                assert_eq!(amount_in(b, r[0], r[1]), Some(get_amount_in(b, r)));
+            }
+        });
     }
 }

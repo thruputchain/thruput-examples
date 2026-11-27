@@ -3,15 +3,10 @@ import { mkdir, mkdtemp, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   Ed25519Signer,
-  ExecutionDecodeError,
-  ExecutionReturnUnavailableError,
-  FundingObservationError,
-  TransactionExecutionError,
-  TransactionObservationError,
-  UnsupportedRpcValue,
   assertTransactionSuccess,
   createPubkeyAccount,
   createWalletClient,
+  isThruputError,
   toBase58,
   toHex0x,
   type ConnectedThruputClient,
@@ -114,42 +109,24 @@ export async function createPersona(client: Client, run: Run, name: string) {
 
 export type Persona = Awaited<ReturnType<typeof createPersona>>;
 
-function receiptFor(error: unknown) {
-  if (
-    error instanceof TransactionExecutionError ||
-    error instanceof ExecutionDecodeError ||
-    error instanceof ExecutionReturnUnavailableError
-  )
-    return error.receipt;
-}
-
+// After signing, the client attaches the transaction's facts to its error.
+// Decide from the outcome only: decoding can fail after a successful
+// execution, and its outcome is still `succeeded`.
 function statusFor(error: unknown): Status {
-  if (error instanceof FundingObservationError) return statusFor(error.cause);
-  const execution = receiptFor(error)?.execution;
-  if (execution && !(execution instanceof UnsupportedRpcValue))
-    return execution.result === "return" ? "confirmed" : "failed";
-  if (
-    error instanceof TransactionObservationError &&
-    error.phase === "beforeSubmission"
-  )
-    return "failed";
-  return "unknown";
+  if (!isThruputError(error)) return "unknown";
+  switch (error.transaction?.outcome) {
+    case "succeeded":
+      return "confirmed";
+    case "failed":
+    case "notSubmitted":
+      return "failed";
+    default:
+      return "unknown";
+  }
 }
 
 function hashFor(error: unknown): Uint8Array | undefined {
-  if (error instanceof TransactionObservationError)
-    return error.transactionHash;
-  if (error instanceof FundingObservationError) {
-    const response = error.lastResponse;
-    return (
-      error.knownCommitment?.transactionHash ??
-      (response && !(response instanceof UnsupportedRpcValue)
-        ? response.transactionHash
-        : undefined) ??
-      hashFor(error.cause)
-    );
-  }
-  return receiptFor(error)?.transactionHash;
+  return isThruputError(error) ? error.transaction?.hash : undefined;
 }
 
 interface FundingResult {

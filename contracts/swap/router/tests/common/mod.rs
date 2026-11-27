@@ -19,6 +19,7 @@ pub use user::*;
 pub use util::*;
 
 pub use swap_driver::*;
+pub use swap_handler::Address;
 pub use swap_handler::*;
 pub use swap_pair::*;
 pub use swap_router::*;

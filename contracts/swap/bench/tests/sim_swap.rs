@@ -362,7 +362,7 @@ async fn observe_block(ctx: &AgentContext, ledger: &SharedLedger, height: i64) -
 // Read a committed transaction's outcome from its receipt, along with the
 // requests it served (by id, and whether each succeeded).
 fn read_receipt(kind: Kind, receipt: &TransactionReceipt) -> (Outcome, Vec<([u8; 32], bool)>) {
-    let height = receipt.block_height.clone().into_inner();
+    let height = receipt.block_height.into_inner();
     if !matches!(receipt.execution, ReceiptExecution::Return { .. }) {
         return (Outcome::Reverted { height }, Vec::new());
     }

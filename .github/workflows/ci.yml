@@ -68,7 +68,7 @@ jobs:
       - run: npm ci
       - name: Install the published Thruput CLI and runtime
         run: |
-          cargo install --version 0.47.0 --locked thruput
+          cargo install --version 0.48.0 --locked thruput
           thruput toolchain install
           echo "THRUPUT_CLI=$(command -v thruput)" >> "$GITHUB_ENV"
           echo "THRUPUT_DEVNODE_BINARY=$(thruput toolchain which)" >> "$GITHUB_ENV"
@@ -133,6 +133,16 @@ jobs:
       - name: Run native tests
         run: cargo test --all --locked
 
+      # `cargo test --all` enables software U256 arithmetic for every crate,
+      # because thruput-client turns it on. Run the crates that use U256 without
+      # Testkit on their own, so their tests use the native executor, which
+      # computes U256 division only inside a transaction.
+      - name: Run U256 crates on the native executor
+        run: |
+          for p in oracle-consumer swap-pair swap-driver swap-router swap-factory swap-gsr-driver swap-clvr-driver; do
+              cargo test -p "$p" --locked
+          done
+
       - name: Cache thruput-cli
         id: cache-thruput
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -141,10 +151,10 @@ jobs:
             ~/.cargo/bin/thruput
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.47.0
+          key: thruput-cli-${{ runner.os }}-${{ runner.arch }}-0.48.0
 
       - name: Install thruput-cli
-        run: cargo install --version 0.47.0 --locked thruput
+        run: cargo install --version 0.48.0 --locked thruput
 
       - name: Configure local build profile
         run: |

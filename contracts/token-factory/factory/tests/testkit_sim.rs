@@ -286,7 +286,7 @@ async fn indexed_created_events(
     for _ in 0..40 {
         let page = ctx
             .network()
-            .get_events(event_query(factory, height.clone()))
+            .get_events(event_query(factory, height))
             .await?;
         if page.latest_indexed_block_height >= height {
             assert!(page.events.iter().all(|event| event.block_height == height));
@@ -622,12 +622,8 @@ fn creator_agent() -> Agent {
             1_000,
             token_hash,
         );
-        let indexed = indexed_created_events(
-            &ctx,
-            factory.address(),
-            creation_receipt.block_height.clone(),
-        )
-        .await?;
+        let indexed =
+            indexed_created_events(&ctx, factory.address(), creation_receipt.block_height).await?;
         assert_eq!(indexed.len(), 1);
         assert_eq!(
             indexed[0].transaction_hash,

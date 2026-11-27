@@ -13,8 +13,8 @@ fresh local node. Testkit starts the node and gives Alice, the test's one agent,
 a funded account. Alice deploys Counter, reads zero, increments by 5, and checks
 that the value is 5. The test then stops the node.
 
-Use CLI **0.47.0** to match this repository's pinned Testkit version and artifact
-format. Install it with `cargo install --locked --version 0.47.0 thruput`, then
+Use CLI **0.48.0** to match this repository's pinned Testkit version and artifact
+format. Install it with `cargo install --locked --version 0.48.0 thruput`, then
 run these commands from the repo root:
 
 ```sh

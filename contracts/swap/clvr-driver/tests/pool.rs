@@ -5,6 +5,7 @@
 //! it orders by are the pool's.
 
 use swap_clvr_driver::*;
+use swap_if::Address;
 use swap_if::*;
 use swap_pair::{from_token, to_token};
 use thruput_erc20_if::ERC20Client;
@@ -228,8 +229,11 @@ fn a_sandwich_comes_apart() {
     assert_eq!(swap_request_ids(&crank), [victim, back, front]);
 
     // The victim was filled at p₀, exactly as a lone trade against the starting pool would be.
-    let alone = (U256::from(VICTIM) * 997 * U256::from(start[0]))
-        / (U256::from(start[1]) * 1000 + U256::from(VICTIM) * 997);
+    // `U256` division is a runtime operation, so compute it in a transaction.
+    let alone = exec(&pool.env, &TEST_ADDR, || {
+        (U256::from(VICTIM) * 997 * U256::from(start[0]))
+            / (U256::from(start[1]) * 1000 + U256::from(VICTIM) * 997)
+    });
     assert_eq!(
         pool.balance(&ALICE, 0),
         WALLET + Amount::try_from(alone).unwrap()

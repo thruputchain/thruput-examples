@@ -314,11 +314,14 @@ fn fee_accrues_to_factory_fee_to() {
     .unwrap();
 
     // Expected: totalSupply * (rootK - rootKLast) / (5 * rootK + rootKLast), computed independently
-    // from the on-chain reserves and supply.
-    let root_k = (U256::from(r0) * U256::from(r1)).integer_sqrt();
-    let root_k_last = k_last.integer_sqrt();
-    let expected =
-        U256::from(supply) * (root_k - root_k_last) / (root_k * U256::from(5) + root_k_last);
+    // from the on-chain reserves and supply. `U256` square roots and division are runtime
+    // operations, so compute them in a transaction.
+    let expected = exec_tx(&s.env, &DEPLOYER, || {
+        let root_k = (U256::from(r0) * U256::from(r1)).integer_sqrt();
+        let root_k_last = k_last.integer_sqrt();
+        U256::from(supply) * (root_k - root_k_last) / (root_k * U256::from(5) + root_k_last)
+    })
+    .unwrap();
 
     // The fee reached the factory's `fee_to`, proving the pair consulted the factory dynamically.
     assert!(expected > U256::ZERO);

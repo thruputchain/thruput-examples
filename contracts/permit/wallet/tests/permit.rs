@@ -110,7 +110,7 @@ fn sign(
         network: thruput_sdk::test_network_hash(),
         verifying_contract: *verifying_contract,
         uniquifier: Uniquifier {
-            block_expiry_height: expiry.clone(),
+            block_expiry_height: expiry,
             nonce,
         },
         body,
@@ -466,11 +466,11 @@ fn a_replayed_permit_is_refused() {
     let env = setup();
     let expiry = current_height(&env) + HORIZON;
 
-    let (op, signature) = alice_permit_until(expiry.clone());
+    let (op, signature) = alice_permit_until(expiry);
     relay(&env, op, signature).assert_success();
     env.advance_block();
 
-    let (op, signature) = alice_permit_until(expiry.clone());
+    let (op, signature) = alice_permit_until(expiry);
     relay(&env, op, signature).assert_abort();
     let (op, signature) = alice_permit_until(expiry);
     assert_wallet_refuses!(&env, op, signature, SignedOpError::AlreadyConsumed);
