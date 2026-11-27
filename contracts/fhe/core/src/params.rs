@@ -132,30 +132,61 @@ pub const KS_GROUP_BYTES: usize = KS_GROUP * KS_SAMPLE_BYTES;
 /// Bytes of a packed LWE ciphertext: `LWE_N + 1` values of 11 bits.
 pub const LWE_BYTES: usize = ((LWE_N + 1) * 11).div_ceil(8);
 
-/// What the network charges in deposit for one stored item, in native-token base units: a base
-/// cost plus a cost per byte (`storageCosts` in `getChainConfig`, the same on local and hosted
-/// nodes today). The contract charges each keyset's funds at this rate for the storage it makes, and a
-/// client funds a keyset by the same rule.
-pub const ITEM_COST: u128 = 12_000;
-pub const BYTE_COST: u128 = 10;
-
-/// The deposit for one item of `bytes` bytes. Small typed values are counted as 64 bytes.
-pub const fn deposit(bytes: usize) -> u128 {
-    ITEM_COST + BYTE_COST * bytes as u128
+/// What a network charges in deposit for one stored item, in native-token base units: a base
+/// cost plus a cost per byte (`storageCosts` in `getChainConfig`). A contract cannot read them,
+/// so its deployer passes them to `initialize`, and the client checks them against the chain.
+/// The contract charges each keyset's funds at these rates for the storage it makes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StorageRates {
+    pub item: u128,
+    pub byte: u128,
 }
 
-/// What a gate job may store before it finishes: its header, the combined input, the two
-/// accumulator polynomials, the extracted ciphertext, the partial key switch, and the result.
-/// Charged in full by `start_gate`; the working state is deleted when the job finishes.
-pub const JOB_DEPOSIT: u128 = deposit(64)
-    + deposit(LWE_BYTES)
-    + 2 * deposit(POLY_BYTES)
-    + deposit((RING_N + 1) * 2)
-    + deposit(KS_SAMPLE_BYTES)
-    + deposit(8 + LWE_BYTES);
+/// The rates of the local and hosted networks today (`baseDataItemCost`, `bytestringCostPerByte`).
+pub const HOSTED_RATES: StorageRates = StorageRates {
+    item: 12_000,
+    byte: 10,
+};
 
-/// The deposit a whole evaluation key takes, about 83 native tokens: what `create_keyset` should
-/// be given, plus something for ciphertexts and jobs.
-pub const KEY_DEPOSIT: u128 = BSK_POLYS as u128 * deposit(POLY_BYTES)
-    + KS_GROUPS as u128 * deposit(KS_GROUP_BYTES)
-    + 3 * deposit(64);
+/// Bytes counted for a small typed value (a header, a counter, a balance): more than any of them
+/// takes, so that a keyset is never charged less than the network takes.
+pub const SMALL_VALUE_BYTES: usize = 64;
+
+/// Bytes of an extracted ciphertext as a job stores it: `RING_N + 1` little-endian `u16`.
+pub const BIG_BYTES: usize = (RING_N + 1) * 2;
+
+impl StorageRates {
+    /// The deposit for one item of `bytes` bytes.
+    pub const fn deposit(&self, bytes: usize) -> u128 {
+        self.item + self.byte * bytes as u128
+    }
+
+    /// A gate job's working state, deleted (and credited back) when the job finishes: the
+    /// combined input, the two accumulator polynomials, the extracted ciphertext and the partial
+    /// key switch.
+    pub const fn job_state(&self) -> u128 {
+        self.deposit(LWE_BYTES)
+            + 2 * self.deposit(POLY_BYTES)
+            + self.deposit(BIG_BYTES)
+            + self.deposit(KS_SAMPLE_BYTES)
+    }
+
+    /// Everything a gate may store, charged by `start_gate`: the job's header, its working state
+    /// and the result. About 0.02 native tokens.
+    pub const fn job(&self) -> u128 {
+        self.deposit(SMALL_VALUE_BYTES) + self.job_state() + self.ciphertext()
+    }
+
+    /// One stored ciphertext: the keyset id and the packed ciphertext.
+    pub const fn ciphertext(&self) -> u128 {
+        self.deposit(8 + LWE_BYTES)
+    }
+
+    /// A whole keyset, reserved by `create_keyset`: its header, upload counter and funds, and
+    /// every piece of its evaluation key. About 83 native tokens.
+    pub const fn keyset(&self) -> u128 {
+        3 * self.deposit(SMALL_VALUE_BYTES)
+            + BSK_POLYS as u128 * self.deposit(POLY_BYTES)
+            + KS_GROUPS as u128 * self.deposit(KS_GROUP_BYTES)
+    }
+}

@@ -11,7 +11,7 @@ use fhe::{FheClient, FheError};
 use fhe_client::node::{GROUPS_PER_UPLOAD, POLYS_PER_UPLOAD};
 use fhe_client::{Rng, SecretKey};
 use fhe_core::Lwe;
-use fhe_core::params::{KS_GROUP_BYTES, POLY_BYTES};
+use fhe_core::params::{KS_GROUP_BYTES, POLY_BYTES, StorageRates};
 use thruput_erc20_if::ERC20Client;
 use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 use thruput_sdk::*;
@@ -44,8 +44,12 @@ fn ciphertexts_and_uploads_rv32() {
         tx.call(&owner).run(AssertUnwindSafe(|| {
             let addr = deploy_contract(&NONCE, &hash);
             let fhe = FheClient::new(&addr);
-            ERC20Client::new(&ADDRESS_NATIVE_TOKEN).adjust_allowance(&addr, 10_000_000);
-            assert_eq!(fhe.create_keyset(10_000_000), 0);
+            // Small rates, so that the whole key's reserved deposit stays cheap.
+            let rates = StorageRates { item: 12, byte: 1 };
+            fhe.initialize(rates.item, rates.byte);
+            let funds = rates.keyset() + 1_000_000;
+            ERC20Client::new(&ADDRESS_NATIVE_TOKEN).adjust_allowance(&addr, funds as i128);
+            assert_eq!(fhe.create_keyset(funds), 0);
             let id = fhe.put_ciphertext(0, &sk.encrypt(true, &mut rng).to_bytes());
             let not = fhe.get_ciphertext(fhe.not(id));
             assert!(!sk.decrypt(&Lwe::from_bytes(&not[8..]).unwrap()));

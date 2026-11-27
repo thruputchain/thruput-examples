@@ -41,7 +41,7 @@ pub fn native_token() -> ContractAddress {
 }
 
 /// The contract's interface identity: its storage struct and crate version.
-pub const INTERFACE: (&str, &str) = ("Fhe", "0.1.0");
+pub const INTERFACE: (&str, &str) = ("Fhe", "0.2.0");
 
 /// The chain's per-transaction gas maximum (`maxTxGas`).
 pub const MAX_TX_GAS: u64 = 1_000_000_000;
@@ -257,6 +257,27 @@ impl Account {
         Ok((value, receipt))
     }
 
+    /// The network's storage deposit rates, from `getChainConfig`.
+    pub async fn storage_rates(&self) -> Result<StorageRates> {
+        let config = self
+            .client
+            .get_chain_config(EmptyRequest {})
+            .await
+            .map_err(|e| error("getChainConfig", e))?;
+        let DecodedResponse::Known(config) = config else {
+            return Err(Error("getChainConfig: unsupported response".into()));
+        };
+        let costs = &config
+            .execution
+            .as_ref()
+            .ok_or_else(|| Error("getChainConfig: no storage costs".into()))?
+            .storage_costs;
+        Ok(StorageRates {
+            item: costs.base_data_item_cost as u128,
+            byte: costs.bytestring_cost_per_byte as u128,
+        })
+    }
+
     /// Simulate a read-only call (no transaction) and decode its return value.
     pub async fn view<A: WriteXDR + ?Sized, R: for<'r> ReadXDR<'r>>(
         &self,
@@ -313,6 +334,7 @@ impl Fhe {
     /// the contract to take them (`adjust_allowance` on the native token), then create. A whole
     /// key takes [`KEY_DEPOSIT`]; gates take [`JOB_DEPOSIT`] each.
     pub async fn create_keyset(&mut self, funds: u128) -> Result<u64> {
+        self.check_rates().await?;
         let allowance = self
             .account
             .submit_to(
@@ -329,6 +351,23 @@ impl Fhe {
             .call(self.address, "create_keyset", &funds, CALL_GAS)
             .await?;
         Ok(id)
+    }
+
+    /// The deposit rates the contract charges keysets at, checked against the network's: were
+    /// they lower, a keyset's recorded funds would exceed what the contract really holds.
+    pub async fn check_rates(&self) -> Result<StorageRates> {
+        let chain = self.account.storage_rates().await?;
+        let rates: (u128, u128) = self.account.view(self.address, "get_rates", &()).await?;
+        let contract = StorageRates {
+            item: rates.0,
+            byte: rates.1,
+        };
+        if contract != chain {
+            return Err(Error(format!(
+                "the contract charges {contract:?}, the network {chain:?}; refusing to fund a keyset"
+            )));
+        }
+        Ok(chain)
     }
 
     /// Upload a whole evaluation key, `window` transactions in flight at a time; then seal it.

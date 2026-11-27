@@ -78,6 +78,18 @@ pub enum FheError {
     InvalidKey = 13,
     /// The transaction's gas cannot pay for even one step; send the crank with more gas.
     NotEnoughGas = 14,
+    /// `initialize` has not set the network's storage rates yet.
+    NotInitialized = 15,
+    AlreadyInitialized = 16,
+}
+
+/// The network's deposit rates (see [`StorageRates`]), as the deployer read them from
+/// `getChainConfig`.
+#[contract_type]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rates {
+    pub item: u128,
+    pub byte: u128,
 }
 
 /// A user's evaluation key.
@@ -136,6 +148,7 @@ pub struct GateEvaluated<'a> {
 
 #[thruput_sdk::storage]
 pub struct Fhe {
+    rates: Value<Rates>,
     keyset_count: NNInt,
     keysets: Map<u64, Value<Keyset>>,
     // What each keyset may still spend on storage, in native-token base units. Its creator pays
@@ -247,8 +260,21 @@ impl Fhe {
         keyset
     }
 
-    /// Take `amount` out of a keyset's funds, or throw `Underfunded`. The decrease merges with
-    /// other calls' decreases in the same block as long as the funds cover all of them.
+    fn rates(&self) -> StorageRates {
+        let rates = self
+            .rates
+            .try_get()
+            .none_if_missing()
+            .or_throw(FheError::NotInitialized);
+        StorageRates {
+            item: rates.item,
+            byte: rates.byte,
+        }
+    }
+
+    /// Take `amount` out of a keyset's funds, or throw `Underfunded`. This reads the funds, so
+    /// calls that charge one keyset are ordered; uploads charge nothing (`create_keyset`
+    /// reserves the whole key), so they can share a block.
     fn charge(&mut self, keyset: u64, amount: u128) {
         self.funds
             .at_mut(&keyset)
@@ -273,8 +299,14 @@ impl Fhe {
         (keyset, ct)
     }
 
+    /// Store a ciphertext, paid for by the caller. The first one also creates the counter, which
+    /// is charged to its keyset.
     fn store_ciphertext(&mut self, keyset: u64, ct: &Lwe) -> u64 {
         let id = count(&self.ciphertext_count);
+        if id == 0 {
+            let counter = self.rates().deposit(SMALL_VALUE_BYTES);
+            self.charge(keyset, counter);
+        }
         self.ciphertext_count.set(id as i128 + 1);
         let mut bytes = [0u8; 8 + LWE_BYTES];
         bytes[..8].copy_from_slice(&keyset.to_le_bytes());
@@ -324,9 +356,8 @@ impl Fhe {
             }
             slot.set(piece);
         }
+        // The deposit for every piece was reserved by `create_keyset`.
         self.uploaded.at_mut(&keyset).inc(added);
-        // Only new pieces add storage; a replaced piece keeps its deposit.
-        self.charge(keyset, added as u128 * deposit(size));
     }
 }
 
@@ -334,8 +365,11 @@ impl Fhe {
 impl Fhe {
     /// Create an empty keyset owned by the caller, paying `funds` native-token base units into
     /// it from the caller's balance. The caller must first allow this contract to spend them
-    /// (`adjust_allowance` on the native token). A whole key takes [`KEY_DEPOSIT`].
+    /// (`adjust_allowance` on the native token). The whole key's deposit
+    /// ([`StorageRates::keyset`], about 83 native tokens) is reserved at once, so the funds must
+    /// cover it; what is left pays for ciphertexts and gates.
     pub fn create_keyset(&mut self, funds: u128) -> u64 {
+        let rates = self.rates();
         let owner = get_caller();
         ERC20Client::new(&ADDRESS_NATIVE_TOKEN).transfer_from(
             &owner,
@@ -349,8 +383,13 @@ impl Fhe {
             sealed: false,
         });
         self.funds.at_mut(&id).increase(funds as i128);
-        // The header, the upload counter and the funds themselves.
-        self.charge(id, 3 * deposit(64));
+        // The first keyset also creates the keyset counter.
+        let counter = if id == 0 {
+            rates.deposit(SMALL_VALUE_BYTES)
+        } else {
+            0
+        };
+        self.charge(id, rates.keyset() + counter);
         id
     }
 
@@ -408,6 +447,24 @@ impl Fhe {
         log_event(&KeysetSealed { keyset });
     }
 
+    /// Record the network's deposit rates (`storageCosts.baseDataItemCost` and
+    /// `bytestringCostPerByte` from `getChainConfig`), once, as part of deployment
+    /// (`thruput deploy --init initialize --init-arg ITEM --init-arg BYTE`). Keysets are charged
+    /// at these rates; were they lower than the network's, a keyset's funds would claim tokens
+    /// that its storage had already spent, so clients check them against the chain.
+    pub fn initialize(&mut self, item: u128, byte: u128) {
+        ensure(self.rates.try_get().is_err(), FheError::AlreadyInitialized);
+        self.rates.set(&Rates { item, byte });
+    }
+
+    pub fn get_rates(&self) -> Rates {
+        let r = self.rates();
+        Rates {
+            item: r.item,
+            byte: r.byte,
+        }
+    }
+
     pub fn get_keyset(&self, keyset: u64) -> Keyset {
         self.keyset(keyset)
     }
@@ -418,14 +475,16 @@ impl Fhe {
     pub fn put_ciphertext(&mut self, keyset: u64, ciphertext: &[u8]) -> u64 {
         self.owned_keyset(keyset);
         let ct = Lwe::from_bytes(ciphertext).or_throw(FheError::InvalidCiphertext);
-        self.charge(keyset, deposit(8 + LWE_BYTES));
+        let cost = self.rates().ciphertext();
+        self.charge(keyset, cost);
         self.store_ciphertext(keyset, &ct)
     }
 
     /// A noiseless encryption of a public bit.
     pub fn constant(&mut self, keyset: u64, bit: bool) -> u64 {
         self.owned_keyset(keyset);
-        self.charge(keyset, deposit(8 + LWE_BYTES));
+        let cost = self.rates().ciphertext();
+        self.charge(keyset, cost);
         self.store_ciphertext(keyset, &Lwe::constant(bit))
     }
 
@@ -441,7 +500,8 @@ impl Fhe {
     pub fn not(&mut self, x: u64) -> u64 {
         let (keyset, ct) = self.load_ciphertext(x);
         self.owned_keyset(keyset);
-        self.charge(keyset, deposit(8 + LWE_BYTES));
+        let cost = self.rates().ciphertext();
+        self.charge(keyset, cost);
         self.store_ciphertext(keyset, &lwe::not(&ct))
     }
 
@@ -455,9 +515,16 @@ impl Fhe {
         ensure(kx == ky, FheError::KeysetMismatch);
         ensure(self.owned_keyset(kx).sealed, FheError::NotSealed);
         // Everything the job will store, paid now: anyone may crank, and cranks charge nothing.
-        self.charge(kx, JOB_DEPOSIT);
-        let combined = lwe::combine(g, &cx, &cy);
+        // The first job also creates the job counter.
+        let rates = self.rates();
         let id = count(&self.job_count);
+        let counter = if id == 0 {
+            rates.deposit(SMALL_VALUE_BYTES)
+        } else {
+            0
+        };
+        self.charge(kx, rates.job() + counter);
+        let combined = lwe::combine(g, &cx, &cy);
         self.job_count.set(id as i128 + 1);
         self.jobs.at_mut(&id).set(&Job {
             keyset: kx,
@@ -608,6 +675,10 @@ impl Fhe {
         self.jobs.at_mut(&job).set(state);
         self.job_big.delete_at(&job);
         self.job_switch.delete_at(&job);
+        // All of the job's working state is deleted now, which releases its deposit to the
+        // contract; it goes back to the keyset that paid for it.
+        let refund = self.rates().job_state();
+        self.funds.at_mut(&state.keyset).increase(refund as i128);
         log_event(&GateEvaluated {
             job,
             output: state.output,

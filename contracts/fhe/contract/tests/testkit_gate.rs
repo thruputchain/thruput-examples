@@ -8,12 +8,15 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use fhe_client::node::{Account, CRANK_GAS, Fhe, Job};
+use fhe_client::node::{Account, CRANK_GAS, Fhe, INTERFACE, Job};
 use fhe_client::{Rng, SecretKey};
 use fhe_core::Gate;
 use fhe_core::params::*;
 use thruput_testkit::xdr::types::ContractAddress;
-use thruput_testkit::{Agent, DeployOptions, NetworkConfig, Scenario, TestkitError};
+use thruput_testkit::xdrs;
+use thruput_testkit::{
+    Agent, DeployOptions, NetworkConfig, Scenario, TestkitError, WalletInitCall, entrypoint_id,
+};
 
 type ERC20Remote = thruput_erc20_if::ERC20Remote<thruput_testkit::Caller>;
 
@@ -25,6 +28,21 @@ fn fhe_error(e: fhe_client::node::Error) -> TestkitError {
         field: "fhe",
         detail: e.0,
     }
+}
+
+/// What the contract holds beyond keyset 0's recorded funds. Every deposit a keyset's storage
+/// takes comes out of that keyset's funds, so this never falls below what it was before the
+/// keyset existed; if it did, one keyset's withdrawals could spend tokens another paid in.
+async fn slack(fhe: &Fhe, token: &ERC20Remote, when: &str) -> Result<i128, TestkitError> {
+    let funds: u128 = fhe
+        .account
+        .view(fhe.address, "keyset_funds", &0u64)
+        .await
+        .map_err(fhe_error)?;
+    let balance = token.get_balance_of(&fhe.address).await?;
+    let slack = balance - funds as i128;
+    println!("{when}: keyset funds {funds}, contract balance {balance}, slack {slack}");
+    Ok(slack)
 }
 
 fn env(name: &str) -> String {
@@ -46,15 +64,29 @@ async fn gates_on_a_node() {
         .expect("attach to the node");
 
     let alice = Agent::new("alice", |mut ctx| async move {
-        // The agent funds the contract (which pays the deposits for the key it stores) and an
-        // account of its own signing, which sends calls with more gas than Testkit's default.
+        // The agent deploys the contract with the network's storage rates and barely any funds
+        // of its own (keysets bring theirs), and funds an account of its own signing, which sends
+        // calls with more gas than Testkit's default.
         ctx.fund(600 * TOKEN).await?;
-        let deployed = ctx
-            .deploy_artifact("fhe", DeployOptions::funded(TOKEN))
-            .await?;
         let account = Account::connect(&env("THRUPUT_RPC_URL"), None, [0x5e; 32])
             .await
             .map_err(fhe_error)?;
+        let rates = account.storage_rates().await.map_err(fhe_error)?;
+        let init = xdrs::cxs::encode(&(rates.item, rates.byte)).expect("encode rates");
+        let deployed = ctx
+            .deploy_artifact(
+                "fhe",
+                DeployOptions {
+                    // The contract's own code and record of the rates; keysets pay for the rest.
+                    amount: TOKEN,
+                    initializer: Some(WalletInitCall {
+                        entrypoint: entrypoint_id(INTERFACE.0, INTERFACE.1, "initialize"),
+                        gas_limit: 20_000_000,
+                        calldata: &init,
+                    }),
+                },
+            )
+            .await?;
         let mut native = [0u8; 32];
         native[31] = 1;
         let token = ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(native));
@@ -77,8 +109,11 @@ async fn gates_on_a_node() {
         let ek = sk.eval_key(&mut rng);
         println!("keygen: {:.1} s", started.elapsed().as_secs_f64());
 
-        let funds = KEY_DEPOSIT + 50 * (JOB_DEPOSIT + 2 * deposit(8 + LWE_BYTES));
+        assert_eq!(fhe.check_rates().await.map_err(fhe_error)?, rates);
+        let before = slack(&fhe, &token, "deployed").await?;
+        let funds = rates.keyset() + 50 * (rates.job() + 2 * rates.ciphertext());
         let keyset = fhe.create_keyset(funds).await.map_err(fhe_error)?;
+        assert!(slack(&fhe, &token, "created").await? >= before);
         let started = Instant::now();
         let mut upload_gas = (0u64, 0u64);
         fhe.upload_keyset(keyset, &ek, 32, |done, total, receipt| {
@@ -99,6 +134,7 @@ async fn gates_on_a_node() {
             upload_gas.1
         );
 
+        assert!(slack(&fhe, &token, "uploaded").await? >= before);
         let mut enc = Rng::from_os();
         for (x, y) in [(true, true), (false, true)] {
             let cx = fhe
@@ -120,6 +156,7 @@ async fn gates_on_a_node() {
                 report.transactions.iter().map(|t| t.1).collect::<Vec<_>>()
             );
             assert_eq!(sk.decrypt(&report.output), !(x & y));
+            assert!(slack(&fhe, &token, "after a gate").await? >= before);
         }
 
         // A full adder: five bootstraps, three deep, some on bootstrapped inputs.
@@ -176,6 +213,17 @@ async fn gates_on_a_node() {
             receipt.gas_used,
             receipt.gas_used / state.next as u64
         );
+        // The owner takes back half of what is left; the contract still covers the rest.
+        let left: u128 = fhe
+            .account
+            .view(fhe.address, "keyset_funds", &0u64)
+            .await
+            .map_err(fhe_error)?;
+        fhe.account
+            .call::<_, ()>(fhe.address, "withdraw", &(0u64, left / 2), 20_000_000)
+            .await
+            .map_err(fhe_error)?;
+        assert!(slack(&fhe, &token, "withdrawn").await? >= before);
         Ok(())
     });
 

@@ -20,9 +20,14 @@ use thruput_sdk::*;
 static NONCE: SHA256Hash = thruput_sdk::sha256_static!("FHE_NONCE");
 
 /// Native-token base units given to each test account.
-const GRANT: i64 = 1_000_000_000;
-/// What the owner pays into keyset 0: enough for a few pieces and ciphertexts, not a whole key.
-const FUNDS: u128 = 400_000;
+const GRANT: i64 = 10_000_000_000;
+/// Rates for the test: small, so that a whole keyset's deposit stays cheap to grant.
+const RATES: StorageRates = StorageRates { item: 12, byte: 1 };
+/// The deposit of a counter, charged to whoever first creates it.
+const COUNTER: u128 = RATES.deposit(SMALL_VALUE_BYTES);
+/// What the owner pays into keyset 0: the key, the keyset and ciphertext counters, and two
+/// ciphertexts.
+const FUNDS: u128 = RATES.keyset() + 2 * COUNTER + 2 * RATES.ciphertext();
 
 fn expect_error<T: std::fmt::Debug>(result: Result<T, CallError>, want: FheError) {
     match result {
@@ -67,6 +72,9 @@ fn keysets_funds_ciphertexts_and_checks() {
         tx.call(&owner).run(AssertUnwindSafe(|| {
             addr = deploy_contract(&NONCE, code.as_hash());
             let fhe = FheClient::new(&addr);
+            expect_error(fhe.try_create_keyset(FUNDS), FheError::NotInitialized);
+            fhe.initialize(RATES.item, RATES.byte);
+            expect_error(fhe.try_initialize(1, 1), FheError::AlreadyInitialized);
             // Creating a keyset takes its funds from the creator, on an allowance.
             assert!(fhe.try_create_keyset(FUNDS).is_err());
         }))
@@ -78,9 +86,10 @@ fn keysets_funds_ciphertexts_and_checks() {
         tx.call(&owner).run(AssertUnwindSafe(|| {
             let fhe = FheClient::new(&addr);
             allow(&addr, 10 * FUNDS);
+            // The funds must cover the whole key's deposit, which is reserved at once.
+            expect_error(fhe.try_create_keyset(RATES.keyset()), FheError::Underfunded);
             assert_eq!(fhe.create_keyset(FUNDS), 0);
-            let spent = 3 * deposit(64);
-            assert_eq!(fhe.keyset_funds(0), FUNDS - spent);
+            assert_eq!(fhe.keyset_funds(0), COUNTER + 2 * RATES.ciphertext());
 
             expect_error(
                 fhe.try_upload_bsk(0, 0, &[0u8; 100]),
@@ -102,28 +111,28 @@ fn keysets_funds_ciphertexts_and_checks() {
             );
             fhe.upload_bsk(0, 0, &[poly, poly, poly].concat());
             fhe.upload_ksk(0, KS_GROUPS as u32 - 2, &[group, group].concat());
-            // Uploading a piece again replaces it without counting or charging it twice.
+            // Uploading a piece again replaces it without counting it twice; the key's deposit
+            // was reserved at creation, so uploads charge nothing.
             fhe.upload_bsk(0, 2, &poly);
             assert_eq!(fhe.uploaded(0), 5);
-            let spent = spent + 3 * deposit(POLY_BYTES) + 2 * deposit(KS_GROUP_BYTES);
-            assert_eq!(fhe.keyset_funds(0), FUNDS - spent);
+            assert_eq!(fhe.keyset_funds(0), COUNTER + 2 * RATES.ciphertext());
             expect_error(fhe.try_seal(0), FheError::Incomplete);
             expect_error(fhe.try_upload_bsk(7, 0, &poly), FheError::NotFound);
 
-            // The funds run out before anything is stored, not partway through.
-            let left = fhe.keyset_funds(0);
-            let too_many = (left / deposit(POLY_BYTES) + 1) as usize;
-            assert!(too_many <= 6, "the test's funds cover only a few pieces");
-            let data = vec![7u8; too_many * POLY_BYTES];
-            expect_error(fhe.try_upload_bsk(0, 100, &data), FheError::Underfunded);
-            assert_eq!(fhe.uploaded(0), 5);
-            // The owner can take unspent funds back, and add more.
-            fhe.withdraw(0, 1000);
-            assert_eq!(fhe.keyset_funds(0), left - 1000);
+            // The funds run out before anything is stored, not partway through: two
+            // ciphertexts are paid for, the third (and its counter's first creation) is not.
+            let ct = sk.encrypt(true, &mut rng).to_bytes();
+            fhe.put_ciphertext(0, &ct);
+            fhe.put_ciphertext(0, &ct);
+            expect_error(fhe.try_put_ciphertext(0, &ct), FheError::Underfunded);
+            expect_error(fhe.try_constant(0, false), FheError::Underfunded);
+            // The owner can add funds, and take unspent funds back.
             fhe.fund_keyset(0, 1000);
-            assert_eq!(fhe.keyset_funds(0), left);
+            expect_error(fhe.try_withdraw(0, 1001), FheError::Underfunded);
+            fhe.withdraw(0, 1000);
+            assert_eq!(fhe.keyset_funds(0), 0);
             // Enough for the ciphertexts below.
-            fhe.fund_keyset(0, FUNDS);
+            fhe.fund_keyset(0, 100 * RATES.ciphertext());
         }))
     })
     .assert_success();
@@ -172,8 +181,8 @@ fn keysets_funds_ciphertexts_and_checks() {
             }
             let x = fhe.put_ciphertext(0, &sk.encrypt(true, &mut rng).to_bytes());
             let y = fhe.put_ciphertext(0, &sk.encrypt(true, &mut rng).to_bytes());
-            // Ciphertext 0 belongs to the other account's keyset 1.
-            expect_error(fhe.try_not(0), FheError::NotOwner);
+            // Ciphertext 2 belongs to the other account's keyset 1.
+            expect_error(fhe.try_not(2), FheError::NotOwner);
             expect_error(
                 fhe.try_start_gate(Gate::Nand as u32, x, x),
                 FheError::SameInput,
@@ -183,7 +192,7 @@ fn keysets_funds_ciphertexts_and_checks() {
                 FheError::NotSealed,
             );
             expect_error(
-                fhe.try_start_gate(Gate::Nand as u32, x, 0),
+                fhe.try_start_gate(Gate::Nand as u32, x, 2),
                 FheError::KeysetMismatch,
             );
             expect_error(fhe.try_start_gate(9, x, y), FheError::InvalidGate);
