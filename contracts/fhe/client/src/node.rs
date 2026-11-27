@@ -332,7 +332,7 @@ pub struct GateReport {
 impl Fhe {
     /// Create a keyset paid with `funds` native-token base units from this account: first allow
     /// the contract to take them (`adjust_allowance` on the native token), then create. A whole
-    /// key takes [`KEY_DEPOSIT`]; gates take [`JOB_DEPOSIT`] each.
+    /// key takes [`StorageRates::keyset`] at once; gates take [`StorageRates::job`] each.
     pub async fn create_keyset(&mut self, funds: u128) -> Result<u64> {
         self.check_rates().await?;
         let allowance = self

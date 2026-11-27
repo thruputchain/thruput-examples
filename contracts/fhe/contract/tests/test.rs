@@ -73,6 +73,18 @@ fn keysets_funds_ciphertexts_and_checks() {
             addr = deploy_contract(&NONCE, code.as_hash());
             let fhe = FheClient::new(&addr);
             expect_error(fhe.try_create_keyset(FUNDS), FheError::NotInitialized);
+            // Zero rates would store a key with nothing recorded against it; huge ones would
+            // overflow the keyset's deposit (1 << 102 overflows the i128 the token takes).
+            for (item, byte) in [
+                (0, 1),
+                (1, 0),
+                (u128::MAX, 1),
+                (1, u128::MAX / 4096),
+                (1, 1 << 102),
+            ] {
+                expect_error(fhe.try_initialize(item, byte), FheError::InvalidRates);
+            }
+            assert_eq!(RATES.checked_keyset(), Some(RATES.keyset()));
             fhe.initialize(RATES.item, RATES.byte);
             expect_error(fhe.try_initialize(1, 1), FheError::AlreadyInitialized);
             // Creating a keyset takes its funds from the creator, on an allowance.

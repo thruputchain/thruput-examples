@@ -189,4 +189,14 @@ impl StorageRates {
             + BSK_POLYS as u128 * self.deposit(POLY_BYTES)
             + KS_GROUPS as u128 * self.deposit(KS_GROUP_BYTES)
     }
+
+    /// [`keyset`](Self::keyset) with checked arithmetic: `None` if it would overflow `u128`.
+    /// The keyset is the largest charge, so rates for which this fits fit every other charge.
+    pub fn checked_keyset(&self) -> Option<u128> {
+        let deposit = |bytes: usize| self.byte.checked_mul(bytes as u128)?.checked_add(self.item);
+        let small = deposit(SMALL_VALUE_BYTES)?.checked_mul(3)?;
+        let bsk = deposit(POLY_BYTES)?.checked_mul(BSK_POLYS as u128)?;
+        let ksk = deposit(KS_GROUP_BYTES)?.checked_mul(KS_GROUPS as u128)?;
+        small.checked_add(bsk)?.checked_add(ksk)
+    }
 }

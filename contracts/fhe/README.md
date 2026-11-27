@@ -71,12 +71,16 @@ funds, and no account can spend what another paid in:
   `storageCosts` in `getChainConfig`: 12,000 base units per item plus 10 per byte on the local
   and hosted networks). A contract cannot read them, so the client checks them against the chain
   before it funds a keyset and refuses on a mismatch: rates lower than the network's would let a
-  keyset's recorded funds claim tokens its storage had already spent.
+  keyset's recorded funds claim tokens its storage had already spent. Anyone may call
+  `initialize` until it succeeds, so deploy with `--init` (as below), which makes it part of the
+  deployment. The rates are then fixed for the life of the contract, and whoever funds a keyset
+  trusts them; the client's check is what makes that trust safe. `initialize` refuses zero rates
+  and rates so large that a keyset's deposit would overflow (`InvalidRates`).
 - `create_keyset(funds)` takes `funds` native-token base units from its creator, on an allowance
   the creator granted the contract (`adjust_allowance` on the native token, `0x00…01`), and
   reserves the whole key's deposit at once (about 83 native tokens). Uploads then charge nothing
   and touch no shared balance, only their own pieces and a mergeable counter, so they do not
-  contend with each other: 2,614 uploads took 48 s on a local node with 32 in flight, and 674 s
+  contend with each other: 2,614 uploads took about 50 s on a local node with 32 in flight, and 674 s
   on Futurenet with 8.
 - Every other call that stores something under a keyset is its owner's (`put_ciphertext`,
   `constant`, `not`, `start_gate`), and takes its deposit out of the keyset's funds before
@@ -151,7 +155,7 @@ Measured on a local node configured like the hosted network (`live.sh`):
 | One gate (AND, OR, NAND, NOR, XOR, XNOR) | 3 transactions: `start_gate` (0.34M gas), `crank` (~996M), `crank` (~790M); 1.79 × 10^9 gas; about 3.5 s locally |
 | NOT, constants | one call, no bootstrap |
 | One blind-rotation step | about 3.1M gas (24 cold reads of 4 KiB, 8 NTTs of size 1024); 2.4M for the last 251 coefficients |
-| Key upload | 2,614 transactions of at most 0.6M gas (6 polynomials or 7 sample groups each); 1.5 × 10^9 gas in all; 48 s locally with 32 in flight |
+| Key upload | 2,614 transactions of at most 0.6M gas (6 polynomials or 7 sample groups each); 1.5 × 10^9 gas in all; about 50 s locally with 32 in flight |
 | Key size and deposit | 63.3 MB in 16,408 storage values; about 83 native tokens, reserved from the keyset's funds |
 | Full adder (5 gates, depth 3) | 15 transactions, about 16 s locally |
 
@@ -188,12 +192,14 @@ bash contracts/fhe/live.sh
 ```
 
 ```text
-upload: 2614 transactions in 51 s, 1421361140 gas in all, at most 563008 per transaction
-NAND(true, true) = false in 3 transactions, 1786555973 gas, 3.6 s: [258651, 995326284, 790971038]
-NAND(false, true) = true in 3 transactions, 1786897923 gas, 3.6 s: [258684, 996207794, 790431445]
-full adder 1 + 1 + 1 = carry 1, sum 1: 15 transactions, 17.3 s
-full adder 1 + 0 + 1 = carry 1, sum 0: 15 transactions, 16.8 s
-one crank: 319 steps for 996207299 gas (3122906 per step)
+upload: 2614 transactions in 53 s, 1527168972 gas in all, at most 592563 per transaction
+uploaded: keyset funds 12635360, contract balance 21862736, slack 9227376
+NAND(true, true) = false in 3 transactions, 1781007006 gas, 3.6 s: [336381, 996209621, 784461004]
+NAND(false, true) = true in 3 transactions, 1786778965 gas, 3.3 s: [336425, 996208788, 790233752]
+full adder 1 + 1 + 1 = carry 1, sum 1: 15 transactions, 16.6 s
+full adder 1 + 0 + 1 = carry 1, sum 0: 15 transactions, 16.3 s
+one crank: 319 steps for 996210866 gas (3122918 per step)
+withdrawn: keyset funds 5885800, contract balance 15197186, slack 9311386
 ```
 
 ### The demo on any network
@@ -235,11 +241,15 @@ The contract is deployed on Futurenet (`https://rpc.thruput.network`, network ha
 
 | | |
 | --- | --- |
-| Contract | `4TNYZEn7tWvhdDcUtdLsxTYY4dxMfPgCnzPMYkMNuKvb`, interface `Fhe` 0.2.0 |
+| Contract | `4TNYZEn7tWvhdDcUtdLsxTYY4dxMfPgCnzPMYkMNuKvb`, interface `Fhe` 0.2.0, built from commit 6af26a9 |
 | Deployment | `6Kq4SaRQeEWtSuyr45MwcJgoymYf145PZfrL6xJe4xas` (height 492,498), initialized with rates 12,000 + 10 per byte, funded with 1 native token for its own code and records |
 | Demo keyset | id `0`, secret key from `DEMO_PHRASE`, funded with 85.5 native tokens; 2,614 upload transactions with 8 in flight in 674 s, the last `2f4ZrQ1ZERxe22QsAEz4YhJCroEqt5MnzfZxTcPmcarY` |
 | NAND(1, 1) | inputs `0`, `1`, output `2`; `FmfYbL8GPg1RvssnuYKTUveeAc2ooPMLUJRPGCSwE9Gx` (`start_gate`, 336,381 gas), `3MPqGcTECZixQzRPNnDTQ1MGV7xbtTDU9d4DM23n3wLt` (crank, 996,209,427), `4PBX2gu4PrxyXy7T2s2Z4uz4VrZt6sNYcyrrwWctyQdX` (crank, 790,787,874); 7.3 s |
 | Full adder 1 + 1 + 0 | inputs `3`, `4`, `5`; sum `7`, carry `10`; 15 transactions, 36.5 s |
+
+The only contract change since 6af26a9 is the rate validation in `initialize` (and its
+`InvalidRates` error), which the deployed instance's rates already pass; its interface and
+storage layout are unchanged, so it was not redeployed.
 
 The demo keyset's *secret key* is public, so anyone can check the results with no key or funds:
 
@@ -270,6 +280,13 @@ can withdraw.
   result is only as meaningful as its inputs.
 - Not constant-time, and the client's Gaussian sampler uses floating point. Fine for a teaching
   example, not for a side-channel-exposed service.
+- No keyset deletion, and the key's deposit (about 83 native tokens) is reserved at creation and
+  never returned. An owner who stops before uploading every piece cannot withdraw it either. On
+  any redeployment, fix this first: let `withdraw` release, before `seal`, the reserve minus the
+  deposit of the pieces already uploaded.
+- The storage rates are a snapshot taken at deployment. If the network raises them, existing
+  keysets keep being charged the old rates, and the difference comes out of the contract's
+  balance: its slack first, then other keysets' funds.
 - Slow and large: a gate takes three transactions, and a keyset is 63 MB. Known ways to shrink
   both: storing the bootstrapping key's uniform halves as a seed and expanding it on chain (half
   the size), and the LMKCDEY blind rotation (fewer, smaller keys).

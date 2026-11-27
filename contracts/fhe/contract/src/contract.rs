@@ -5,10 +5,11 @@
 //!   bootstrapping-key polynomials and [`KS_GROUPS`] groups of key-switching samples in any order
 //!   over many transactions, and seals it.
 //! * **Who pays.** On Thruput a contract pays the deposits for what it stores, and a caller
-//!   cannot pay for the storage its call creates. So every keyset carries its own funds, and
-//!   every call that stores something under a keyset is its owner's and takes the deposit out of
-//!   those funds ([`charge`](Fhe::charge)), failing with `Underfunded` before anything is stored
-//!   when they run out. No account can spend what another account paid in.
+//!   cannot pay for the storage its call creates. So every keyset carries its own funds.
+//!   `create_keyset` reserves the whole key's deposit, so uploads charge nothing; every other
+//!   call that stores something under a keyset is its owner's and takes the deposit out of those
+//!   funds ([`charge`](Fhe::charge)), failing with `Underfunded` before anything is stored when
+//!   they run out. No account can spend what another account paid in.
 //! * A **ciphertext** is an encrypted bit, stored under an id together with its keyset.
 //!   [`put_ciphertext`](Fhe::put_ciphertext) stores one, [`not`](Fhe::not) and
 //!   [`constant`](Fhe::constant) make one without any key, and a finished job makes one.
@@ -81,6 +82,8 @@ pub enum FheError {
     /// `initialize` has not set the network's storage rates yet.
     NotInitialized = 15,
     AlreadyInitialized = 16,
+    /// `initialize` with a zero rate, or rates so large that a keyset's deposit overflows.
+    InvalidRates = 17,
 }
 
 /// The network's deposit rates (see [`StorageRates`]), as the deployer read them from
@@ -452,8 +455,21 @@ impl Fhe {
     /// (`thruput deploy --init initialize --init-arg ITEM --init-arg BYTE`). Keysets are charged
     /// at these rates; were they lower than the network's, a keyset's funds would claim tokens
     /// that its storage had already spent, so clients check them against the chain.
+    ///
+    /// Anyone may call this until it succeeds, so deploy with `--init` to make it atomic. The
+    /// rates are fixed for the life of the contract. Zero rates (storage recorded against no
+    /// keyset) and rates whose keyset deposit overflows are refused.
     pub fn initialize(&mut self, item: u128, byte: u128) {
         ensure(self.rates.try_get().is_err(), FheError::AlreadyInitialized);
+        let rates = StorageRates { item, byte };
+        ensure(
+            item > 0
+                && byte > 0
+                && rates
+                    .checked_keyset()
+                    .is_some_and(|keyset| keyset <= i128::MAX as u128),
+            FheError::InvalidRates,
+        );
         self.rates.set(&Rates { item, byte });
     }
 
