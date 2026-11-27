@@ -25,6 +25,7 @@ members = [
     "contracts/speedex",
     "contracts/voting",
     "contracts/erc20/integration-test",
+    "contracts/fhe/*",
     "contracts/permit/*",
     "contracts/stellar-account/*",
     "contracts/swap/*",
@@ -87,3 +88,10 @@ trim-paths = "all" # unstable
 # and well under it optimized for size.
 [profile.release.package.speedex]
 opt-level = "s"
+
+# The FHE example's tests evaluate hundreds of bootstrapped gates natively; unoptimized, each
+# takes seconds.
+[profile.dev.package.fhe-core]
+opt-level = 3
+[profile.dev.package.fhe-client]
+opt-level = 3

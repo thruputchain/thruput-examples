@@ -1,0 +1,43 @@
+[package]
+name = "fhe"
+description = "A contract that evaluates bootstrapped FHE gates on encrypted bits, for any number of keysets"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "fhe"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+# The evaluation buffers (28 KiB) are allocated once per crank, so the guest needs the allocator.
+entrypoints = ["thruput-sdk/alloc"]
+dev = ["thruput-sdk/dev"]
+remote = ["thruput-sdk/remote"]
+
+[dependencies]
+thruput-sdk = { workspace = true }
+fhe-core = { path = "../core" }
+
+[dev-dependencies]
+fhe = { path = ".", features = ["dev", "remote"] }
+fhe-client = { path = "../client", features = ["node"] }
+# `tests/testkit_gate.rs` runs the contract on a node.
+thruput-testkit = { workspace = true }
+thruput-erc20-if = { workspace = true }
+thruput-sdk = { workspace = true, features = ["remote"] }
+tokio = { workspace = true }

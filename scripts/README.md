@@ -45,6 +45,7 @@ scenarios.
 | Command | Purpose | Important effects |
 | --- | --- | --- |
 | `bash contracts/permit/live.sh` | Sign an off-chain permit and relay it on a devnode | Builds token/wallet/relayer artifacts; runs an ignored live test |
+| `bash contracts/fhe/live.sh` | Upload an FHE keyset and evaluate gates on a node configured like the hosted network | Builds the FHE artifact with a 16 KiB stack; starts a temporary node; about 2,600 upload transactions |
 | `bash contracts/swap/bench/sim.sh` | Multi-agent Swap liquidity scenario | Builds Swap artifacts; runs an ignored live test |
 | `bash contracts/swap/bench/gas-calibrate.sh` | Measure per-request crank gas, alone and in a batch | Overwrites the driver artifact with an instrumented build; rebuild normally afterward |
 | `bash contracts/speedex/bench/run.sh` | Measure exchange quality and on-node gas | Temporarily edits the Speedex manifest; leaves an artifact with a different memory budget; writes CSVs under `target/` |
