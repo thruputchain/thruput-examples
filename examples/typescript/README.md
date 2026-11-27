@@ -291,8 +291,9 @@ Where each example gets the hash:
   receipt.
 - `deploy-counter.ts`, `transfer-native-token.ts`, and `pq-account.ts` use
   `executeAndWait` or `deployContractAndWait`, which print a hash only after
-  the receipt arrives. On a timeout these calls throw an error whose
-  `transactionHash` field is the hash to look up.
+  the receipt arrives. On a timeout these calls throw a `ThruputError` whose
+  `transaction.hash` is the hash to look up, and `transaction.outcome` is
+  `unknown`. Print it with `toBase58(error.transaction.hash)`.
 - The wallet apps (Voting, Airdrop, Launchpad, and Swap) save the hash in the
   browser before the wallet broadcasts. The [Voting app](../../apps/voting/README.md)
   explains how.

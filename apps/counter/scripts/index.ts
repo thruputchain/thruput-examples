@@ -9,11 +9,15 @@ import {
   hashFromBase58,
   HttpTransport,
   parseUnits,
-  prepareContractDeployment,
   toBase58,
   toHex0x,
-  type ContractDeployment,
 } from "@thruputchain/client";
+import {
+  createKeyFile,
+  createOutputDirectory,
+  loadArtifacts,
+  withScenario,
+} from "@thruputchain/testkit";
 import { gasAmount, networkHash } from "@thruputchain/protocol";
 import {
   errorMessage,
@@ -22,15 +26,6 @@ import {
   type AppConfig,
 } from "../src/config";
 import { Counter } from "../src/contracts/generated/counter";
-import {
-  createPersona,
-  createRun,
-  record,
-  saveRun,
-  type Client,
-  type Persona,
-  type Run,
-} from "./run";
 
 const initialValue = 1_000_000n;
 const callGas = gasAmount(500_000n); // Limits the inner initialization call.
@@ -91,116 +86,114 @@ interface Options {
 
 /** Create a fresh Counter and publish its environment after verification. */
 export async function provisionCounter(options: Options): Promise<void> {
-  const contract = await readFile(
-    resolve(repositoryRoot, options.artifact || "target/thruput/counter.rv32a"),
-  );
-  // The SDK discovers network identity and checks an explicit pin before signing.
-  const client = await createThruputClient({
-    cluster: defineCluster({
-      name: options.network,
-      rpcUrl: options.rpcUrl,
-      capabilities: ["airdrop"] as const,
-      ...(options.networkId === undefined
-        ? {}
-        : {
-            networkHash: networkHash(hashFromBase58(options.networkId)),
-          }),
-    }),
-    transport: new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 }),
-  });
-  const output = resolve(repositoryRoot, options.output);
-  const run = await createRun(
-    join(dirname(output), ".local", "counter-setup"),
-    toBase58(client.network.networkHash),
-  );
-  console.log(`Run: ${run.directory}`);
-  try {
-    const persona = await createPersona(client, run, "Counter Operator");
-    const deployment = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract,
-    });
-    const config = parseConfig({
-      networkId: run.manifest.networkHash,
-      counterAddress: toBase58(deployment.address),
-      signerAddress: persona.address,
-      explorerUrl: options.explorerUrl,
-    });
-    // Keep the predicted address even if deployment confirmation fails.
-    run.manifest.counterAddress = config.counterAddress;
-    await saveRun(run);
-
-    // Await each step: later operations depend on earlier confirmations.
-    await fundPersona(run, persona);
-    await deployCounter(run, persona, deployment);
-    await verifyCounter(client, run, persona, deployment);
-    await writeEnvironment(output, options.rpcUrl, config, persona.seed);
-    run.manifest.status = "complete";
-    await saveRun(run);
-    console.log(
-      `Counter ready at ${config.counterAddress}\nSigner: ${persona.address}\nEnvironment: ${output}`,
-    );
-  } catch (error) {
-    run.manifest.status = "failed";
-    run.manifest.error = error instanceof Error ? error.message : String(error);
-    await saveRun(run);
-    throw error;
-  }
-}
-
-async function fundPersona(run: Run, persona: Persona) {
-  await record(run, `Fund ${persona.name}`, async () => {
-    // The faucet chooses the amount and waits for successful execution.
-    const funding = await persona.wallet.requestAirdrop(wait);
-    return {
-      hash: funding.transactionHash,
-      blockHeight: funding.blockHeight,
-    };
-  });
-}
-
-async function deployCounter(
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-) {
-  await record(run, "Deploy and initialize Counter", () =>
-    // Funding, deployment, and initialization succeed or fail together.
-    persona.wallet.deployContractAndWait(
-      deployment,
-      {
-        gasLimit: deploymentGas,
-        amount: storageFunding,
-        initializer: Counter.v0_1.initialize.invocation(
-          deployment.address,
-          callGas,
-          { initialValue },
-        ),
-      },
-      wait,
+  const artifacts = await loadArtifacts({
+    counter: resolve(
+      repositoryRoot,
+      options.artifact || "target/thruput/counter.rv32a",
     ),
-  );
-}
-
-async function verifyCounter(
-  client: Client,
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-) {
-  // Require a snapshot containing our last confirmed write, not an older state.
-  const result = await Counter.v0_1.get.view({
-    client,
-    address: deployment.address,
-    caller: persona.account.address,
-    minStateBlockHeight: run.latestBlockHeight,
   });
-  // Expected state comes from scenario input, independently of transaction results.
-  if (result.value !== initialValue) {
-    throw new Error(
-      `Counter verification failed: expected ${initialValue}, received ${result.value}.`,
-    );
-  }
+  const cluster = defineCluster({
+    name: options.network,
+    rpcUrl: options.rpcUrl,
+    capabilities: ["airdrop"] as const,
+    ...(options.networkId === undefined
+      ? {}
+      : {
+          networkHash: networkHash(hashFromBase58(options.networkId)),
+        }),
+  });
+  const transport = new HttpTransport(options.rpcUrl, { timeoutMs: 15_000 });
+  // Preserve discovery and optional pins, then bind the scenario to this identity.
+  const client = await createThruputClient({ cluster, transport });
+  const output = resolve(repositoryRoot, options.output);
+  const directory = await createOutputDirectory(
+    join(dirname(output), ".local", "counter-setup"),
+  );
+  const runDirectory = join(directory, "transactions");
+  console.log(`Report: ${join(runDirectory, "report.json")}`);
+  // Save the private key before funding or deployment, so a failed run can be recovered.
+  const operator = await createKeyFile(join(directory, "key.json"));
+  const deployment = artifacts.counter.prepare(operator.account.address);
+  const config = await withScenario(
+    {
+      network: {
+        cluster: {
+          ...cluster,
+          networkHash: networkHash(
+            hashFromBase58(toBase58(client.network.networkHash)),
+          ),
+        },
+        transport,
+      },
+      accounts: { "Counter Operator": operator.account },
+      runDirectory,
+    },
+    async (scenario) => {
+      const actor = scenario.actor("Counter Operator");
+      const config = parseConfig({
+        networkId: scenario.run.report().networkHash,
+        counterAddress: toBase58(deployment.address),
+        signerAddress: operator.address,
+        explorerUrl: options.explorerUrl,
+      });
+      console.log(
+        `Signer: ${operator.address}\nPredicted Counter: ${config.counterAddress}`,
+      );
+      try {
+        // The faucet chooses the amount. The report records the request and its hash.
+        await scenario.run.step("fund-operator", () =>
+          actor.fund({ timeoutMs: wait.timeoutMs }),
+        );
+        await scenario.run.step(
+          "deploy-counter",
+          () =>
+            actor.deploy(deployment, {
+              gasLimit: deploymentGas,
+              amount: storageFunding,
+              wait,
+              // Funding, deployment, and initialization succeed or fail together.
+              initializer: Counter.v0_1.initialize.call({
+                address: deployment.address,
+                gasLimit: callGas,
+                args: { initialValue },
+              }),
+            }),
+          {
+            metadata: {
+              address: config.counterAddress,
+              initialValue: initialValue.toString(),
+            },
+          },
+        );
+        await scenario.run.step("verify-counter", async () => {
+          // Testkit reads a snapshot containing the confirmed deployment.
+          const result = await scenario.view(
+            Counter.v0_1.get.viewRequest({
+              address: deployment.address,
+              caller: operator.account.address,
+            }),
+          );
+          if (result.value !== initialValue) {
+            throw new Error(
+              `Counter verification failed: expected ${initialValue}, received ${result.value}.`,
+            );
+          }
+        });
+        return config;
+      } finally {
+        for (const attempt of scenario.run.report().attempts) {
+          console.log(
+            `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
+          );
+        }
+      }
+    },
+  );
+  // Finish report persistence and scenario cleanup before publishing the app environment.
+  await writeEnvironment(output, options.rpcUrl, config, operator.seed);
+  console.log(
+    `Counter ready at ${config.counterAddress}\nSigner: ${operator.address}\nEnvironment: ${output}`,
+  );
 }
 
 async function writeEnvironment(
@@ -223,12 +216,13 @@ async function writeEnvironment(
         "PORT=3000",
         "",
       ].join("\n"),
-      { flag: "wx", mode: 0o600 },
+      { flag: "wx", mode: 0o600, flush: true },
     );
     // Publish only after verification, keeping the previous environment on setup failure.
     await rename(temporary, output);
-  } finally {
+  } catch (error) {
     await rm(temporary, { force: true });
+    throw error;
   }
 }
 

@@ -14,7 +14,9 @@ For a simple counter app with a browser wallet, run
 
 ## Local setup
 
-Complete [root setup](../../README.md#setup) and `npm ci`. In a separate terminal:
+Complete [root setup](../../README.md#setup) and run `npm ci` from the root. Use
+CLI 0.48.0 or newer with its compatible managed runtime.
+In a separate terminal:
 
 ```sh
 thruput node --port 9545 --json
@@ -31,8 +33,9 @@ Open **http://127.0.0.1:5175**. Every setup run builds the contract/bindings,
 creates a named Counter Operator and bound wallet, funds the operator, then
 deploys, funds, and initializes Counter to 1,000,000 in one transaction.
 It verifies that value against a snapshot containing the confirmed deployment,
-then writes `.env.local`. Failed setup keeps the previous file. Restart the app
-after setup. The server keeps the private development signer; browsers receive
+finishes the testkit report, then atomically replaces `.env.local`. A funding,
+deployment, verification, or report-write failure keeps the previous file.
+Restart the app after setup. The server keeps the private development signer; browsers receive
 only public configuration and signatures for the two allowed counter calls.
 
 Overrides: `THRUPUT_RPC_URL` (default `http://127.0.0.1:9545`), `COUNTER_APP_ENV`
@@ -42,24 +45,42 @@ from the repo root.
 Contract generation uses `thruput` from `PATH`. Set `THRUPUT_CLI` only to use a
 different CLI executable.
 
-The SDK discovers the network identity. Optionally set `THRUPUT_NETWORK_ID` or
-`THRUPUT_RUNTIME_MANIFEST` to check an expected network. If both are supplied,
+The SDK discovers the network identity, then testkit binds the run to it.
+Discovery is not an independent trusted network check. Optionally set
+`THRUPUT_NETWORK_ID` or `THRUPUT_RUNTIME_MANIFEST` to check an expected network. If both are supplied,
 their network hashes must agree.
 
 ### Setup records
 
-Each run prints its directory under `.local/counter-setup/`, beside the environment
-output. `manifest.json` stores the operator address, predicted Counter address,
-network hash, and transaction records. `key.json` stores the private operator key
-separately, including when setup fails. Both files are owner-readable only.
+Each run prints its report path under `.local/counter-setup/<run>/transactions/`,
+beside the environment output. `transactions/report.json` is testkit's public record:
 
-`record()` saves intent before each operation and distinguishes `confirmed`,
-`failed`, and `unknown` outcomes. A timeout remains unknown; setup does not retry
-the transaction. Inspect its original hash before starting another run.
-`createPersona()` creates the named account and its wallet once. These helpers
-live in `scripts/run.ts`; `scripts/index.ts` keeps configuration, SDK calls, and scenario
-steps visible. Expected state comes from the configured initial value, independently
-of transaction results.
+- `actors` maps `Counter Operator` to its wallet address.
+- `steps` records funding, deployment, and verification. Deployment metadata includes
+  the predicted Counter address and initial value.
+- `attempts` contains the faucet funding and deployment. Each has its execution
+  outcome, and its hash when one is known: `succeeded`, `failed`, `notSubmitted`, or `unknown`.
+  The deployment also has its receipt.
+
+`transactions/evidence/` holds restricted signed evidence saved before dispatch.
+`key.json` keeps the private operator seed and account nonce separately, including
+when setup fails. Private files are owner-readable only. There is no custom manifest.
+
+The terminal prints the wallet, predicted Counter address, and transaction hashes.
+If a send response is lost, setup observes the signed transaction instead of
+sending it again. A transaction still unconfirmed when the wait ends stays
+unknown; setup never resubmits automatically.
+`reconcileRun("<run>/transactions", client)` observes the original funding and
+deployment without sending them again or changing the saved report. If the
+funding attempt has no hash, call the faucet's `requestAirdropAttempt` with the
+`clientNonce` saved in its intent, never a new nonce: a new nonce can fund twice.
+
+When `report.json` shows the `verify-counter` step as `completed`, the chain
+state was checked. The environment is
+published afterward; the environment file and final `Counter ready` message confirm
+that publication. Testkit's `createKeyFile` saves the key before funding.
+`scripts/index.ts` keeps configuration, calls, and assertions visible. Expected state
+comes from the configured initial value, independently of transaction results.
 
 ## Where the Thruput code is
 
@@ -96,13 +117,14 @@ of transaction results.
 
 Run `npm run <command> --workspace apps/counter`:
 
-| Command | Purpose |
-| --- | --- |
-| `dev` | Vite UI and signing/RPC server |
-| `generate:contracts` | Build Counter and regenerate its binding |
-| `setup:local`, `setup:devnet` | Create a fresh deployment and environment |
-| `typecheck`, `test`, `build` | Check types, tests, and production bundle |
-| `start` | Serve the production bundle; `PORT` defaults to 3000 |
+| Command                       | Purpose                                                     |
+| ----------------------------- | ----------------------------------------------------------- |
+| `dev`                         | Vite UI and signing/RPC server                              |
+| `generate:contracts`          | Build Counter and regenerate its binding                    |
+| `setup:local`, `setup:devnet` | Create a fresh deployment and environment                   |
+| `typecheck`, `test`, `build`  | Check types, tests, and production bundle                   |
+| `test:setup:integration`      | Verify setup and lost-response recovery on an isolated node |
+| `start`                       | Serve the production bundle; `PORT` defaults to 3000        |
 
 Both setup commands use `scripts/index.ts`. The selected network only changes
 the default RPC URL and output file; the deployment flow is the same.
@@ -125,3 +147,10 @@ against that policy. `/healthz` checks server configuration readiness.
 Root `npm run test:counter` checks an isolated node and real browser input after
 the artifact and app are built. See
 [checks and prerequisites](../../scripts/README.md#checks).
+
+`test:setup:integration` needs Linux and CLI 0.48.0 or newer, and uses
+`thruput` from `PATH`. Run `generate:contracts` first. It tests local and devnet setup modes against an
+isolated local node, and preserves an existing environment on failure. When a
+deployment's send response is lost, setup observes it without another
+submission, and reconciliation finds the same transaction. It does not qualify the
+hosted devnet endpoint.
