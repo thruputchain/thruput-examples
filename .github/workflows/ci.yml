@@ -90,6 +90,7 @@ jobs:
           npm run test:setup:integration --workspace apps/counter
           npm run test:setup:integration --workspace apps/voting
           npm run test:setup:integration --workspace apps/token-launchpad
+          npm run test:setup:integration --workspace apps/swap
           npm run test:seed
           npm run test:batching
           npm run test:launchpad-swap

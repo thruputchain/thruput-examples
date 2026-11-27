@@ -15,9 +15,7 @@ import {
   HttpTransport,
   toBase58,
   toHex0x,
-  type ContractDeployment,
 } from "@thruputchain/client";
-import { prepareContractDeployment } from "@thruputchain/client/wallet";
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
@@ -26,6 +24,13 @@ import {
   networkHash,
   type ContractAddress,
 } from "@thruputchain/protocol";
+import {
+  createKeyFile,
+  createOutputDirectory,
+  loadArtifacts,
+  withScenario,
+  type Scenario,
+} from "@thruputchain/testkit";
 
 import {
   SwapFactory,
@@ -33,15 +38,6 @@ import {
 } from "../src/contracts/generated/swap-factory";
 import { SwapRouter } from "../src/contracts/generated/swap-router";
 import { parseExplorerUrl } from "../src/lib/explorer-url";
-import {
-  createPersona,
-  createRun,
-  record,
-  saveRun,
-  type Client,
-  type Run,
-  type Persona,
-} from "./run";
 
 const GAS_LIMIT = gasAmount(10_000_000n);
 const CONTRACT_FUNDING = 10_000_000n;
@@ -119,31 +115,36 @@ export async function provisionSwap(options: {
   );
   const rpcUrl = options.rpcUrl;
   const explorerUrl = parseExplorerUrl(options.explorerUrl);
-  const client = await createThruputClient({
-    cluster: defineCluster({
-      name: options.network,
-      rpcUrl,
-      ...(options.networkId === undefined
-        ? {}
-        : { networkHash: networkHash(hashFromBase58(options.networkId)) }),
-      capabilities: ["airdrop"] as const,
-    }),
-    transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
+  const cluster = defineCluster({
+    name: options.network,
+    rpcUrl,
+    ...(options.networkId === undefined
+      ? {}
+      : { networkHash: networkHash(hashFromBase58(options.networkId)) }),
+    capabilities: ["airdrop"] as const,
   });
+  const transport = new HttpTransport(rpcUrl, { timeoutMs: 10_000 });
+  // Preserve discovery and optional pins. This external client remains usable after setup.
+  const client = await createThruputClient({ cluster, transport });
+  // Pin the scenario to the network the SDK discovered and checked.
+  const expectedNetwork = networkHash(
+    hashFromBase58(toBase58(client.network.networkHash)),
+  );
   const version = await client.getVersionInfo();
   if (!/^14\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
     throw new Error(
       `Thruput wire format 14.x is required; found ${version.wireFormat}`,
     );
   }
-  const [erc20, factoryCode, routerCode, handlerCode, driverCode] =
-    await Promise.all([
-      readFile(join(artifactRoot, "erc20.rv32a")),
-      readFile(join(artifactRoot, "swap_factory.rv32a")),
-      readFile(join(artifactRoot, "swap_router.rv32a")),
-      readFile(join(artifactRoot, "swap_handler.rv32a")),
-      readFile(join(artifactRoot, "swap_driver.rv32a")),
-    ]);
+  const artifacts = await loadArtifacts({
+    handler: join(artifactRoot, "swap_handler.rv32a"),
+    driver: join(artifactRoot, "swap_driver.rv32a"),
+    factory: join(artifactRoot, "swap_factory.rv32a"),
+    router: join(artifactRoot, "swap_router.rv32a"),
+  });
+  // Setup never deploys this ERC20 code. It needs the raw bytes for the code
+  // hash and the published artifact.
+  const erc20 = await readFile(join(artifactRoot, "erc20.rv32a"));
   const codeHash = (data: Uint8Array) =>
     fixedBytes(
       hashContract({
@@ -152,215 +153,196 @@ export async function provisionSwap(options: {
       }),
       32,
     );
+
+  const directory = await createOutputDirectory(
+    join(dirname(environmentPath), ".local", "swap-setup"),
+  );
+  const runDirectory = join(directory, "transactions");
+  console.log(`Report: ${join(runDirectory, "report.json")}`);
+  // Save the private key before funding or deployment, so a failed run can be recovered.
+  const deployer = await createKeyFile(join(directory, "key.json"));
+  // Predict every address first: each initializer stores another contract's address.
+  const handler = artifacts.handler.prepare(deployer.account.address);
+  const driver = artifacts.driver.prepare(deployer.account.address);
+  const factory = artifacts.factory.prepare(deployer.account.address);
+  const router = artifacts.router.prepare(deployer.account.address);
   const hashes: SwapHashes = {
     token: codeHash(erc20),
-    handler: codeHash(handlerCode),
-    driver: codeHash(driverCode),
+    handler: fixedBytes(handler.contractHash, 32),
+    driver: fixedBytes(driver.contractHash, 32),
   };
   const tokenHash = hashes.token;
   const artifactPath = join(artifactDirectory, `${toBase58(tokenHash)}.json`);
-  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(erc20), hash: toBase58(tokenHash) })}\n`;
 
+  // Check both outputs before any transaction spends funds.
   await mkdir(dirname(environmentPath), { recursive: true });
   await mkdir(dirname(artifactPath), { recursive: true });
   const temporary = `${environmentPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
   const temporaryArtifact = `${artifactPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
-  const run = await createRun(
-    join(dirname(environmentPath), ".local", "swap-setup"),
-    toBase58(client.network.networkHash),
-  );
-  console.log(`Run: ${run.directory}`);
   try {
-    // Check output writability before any ledger writes; preserve the old file on failure.
+    await writeFile(
+      temporaryArtifact,
+      `${JSON.stringify({ contractType: "rv32", data: toHex0x(erc20), hash: toBase58(tokenHash) })}\n`,
+      { mode: 0o644, flag: "wx" },
+    );
     await writeFile(temporary, "", { mode: 0o600, flag: "wx" });
-    await writeFile(temporaryArtifact, artifactContents, {
-      mode: 0o644,
-      flag: "wx",
-    });
-    const persona = await createPersona(client, run, "Swap Deployer");
-    // Predict both addresses first: each initializer stores the other's address.
-    const handler = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract: handlerCode,
-    });
-    const driver = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract: driverCode,
-    });
-    const factory = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract: factoryCode,
-    });
-    const router = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract: routerCode,
-    });
-    run.manifest.addresses = {
-      handler: toBase58(handler.address),
-      driver: toBase58(driver.address),
-      factory: toBase58(factory.address),
-      router: toBase58(router.address),
-    };
-    await saveRun(run);
 
-    await fundPersona(run, persona);
-    await fundNativeReserve(run, persona);
-    await registerCode(run, persona, "Handler", handler);
-    await registerCode(run, persona, "Driver", driver);
-    await deployFactory(run, persona, factory, router.address, hashes);
-    await deployRouter(run, persona, router, factory.address);
-    await verifySwap(client, run, factory.address, router.address, hashes);
+    await withScenario(
+      {
+        network: {
+          cluster: { ...cluster, networkHash: expectedNetwork },
+          transport,
+        },
+        accounts: { "Swap Deployer": deployer.account },
+        runDirectory,
+      },
+      async (scenario) => {
+        const actor = scenario.actor("Swap Deployer");
+        console.log(
+          `Deployer: ${deployer.address}\nPredicted factory: ${toBase58(factory.address)}\nPredicted router: ${toBase58(router.address)}`,
+        );
+        try {
+          await scenario.run.step("fund-deployer", async () => {
+            // The faucet chooses the amount. The report records the request and its hash.
+            await actor.fund({ timeoutMs: wait.timeoutMs });
+            // Five storage deposits plus one token of remaining scheduling capacity.
+            const { rawBalance } = await actor.wallet.getBalance();
+            if (rawBalance < CONTRACT_FUNDING * 6n)
+              throw new Error(
+                "Infrastructure deployer airdrop did not provide the required native-token reserve",
+              );
+          });
+          // The native contract needs storage reserve for future token balance rows.
+          await scenario.run.step("fund-native-reserve", () =>
+            actor.call(
+              [
+                ERC20.v0_1.transfer.call({
+                  address: NATIVE_TOKEN_ADDRESS,
+                  gasLimit: GAS_LIMIT,
+                  args: {
+                    receiver: NATIVE_TOKEN_ADDRESS,
+                    amount: CONTRACT_FUNDING,
+                  },
+                }),
+              ],
+              { wait },
+            ),
+          );
+          // Unused attachments are not persisted. Deploy uninitialized handler and
+          // driver instances to register their code. The first pair creation attaches LP code.
+          for (const [name, deployment] of [
+            ["handler", handler],
+            ["driver", driver],
+          ] as const)
+            await scenario.run.step(
+              `register-${name}`,
+              () =>
+                actor.deploy(deployment, {
+                  gasLimit: GAS_LIMIT,
+                  amount: CONTRACT_FUNDING,
+                  wait,
+                }),
+              { metadata: { address: toBase58(deployment.address) } },
+            );
+          await scenario.run.step(
+            "deploy-factory",
+            () =>
+              // Funding, deployment, and initialization succeed or fail together.
+              actor.deploy(factory, {
+                gasLimit: GAS_LIMIT,
+                amount: CONTRACT_FUNDING,
+                initializer: SwapFactory.v0_1.initialize.call({
+                  address: factory.address,
+                  gasLimit: GAS_LIMIT,
+                  args: { hashes, feeTo: null, router: router.address },
+                }),
+                wait,
+              }),
+            { metadata: { address: toBase58(factory.address) } },
+          );
+          await scenario.run.step(
+            "deploy-router",
+            () =>
+              actor.deploy(router, {
+                gasLimit: GAS_LIMIT,
+                amount: CONTRACT_FUNDING,
+                initializer: SwapRouter.v0_1.initialize.call({
+                  address: router.address,
+                  gasLimit: GAS_LIMIT,
+                  args: { factory: factory.address },
+                }),
+                wait,
+              }),
+            { metadata: { address: toBase58(router.address) } },
+          );
+          await scenario.run.step("verify-swap", () =>
+            verifySwap(scenario, factory.address, router.address, hashes),
+          );
+        } finally {
+          for (const attempt of scenario.run.report().attempts) {
+            console.log(
+              `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
+            );
+          }
+        }
+      },
+    );
+
+    // Finish report persistence and scenario cleanup before publishing app files.
     await writeFile(
       temporary,
-      renderEnvironment(run.manifest.networkHash, rpcUrl, {
+      renderEnvironment(toBase58(expectedNetwork), rpcUrl, {
         factory: factory.address,
         router: router.address,
         tokenHash,
       }) +
         (options.network === "devnet"
-          ? [
-              `VITE_EXPLORER_URL=${explorerUrl ?? ""}`,
-              "PORT=3000",
-              "",
-            ].join("\n")
+          ? [`VITE_EXPLORER_URL=${explorerUrl ?? ""}`, "PORT=3000", ""].join(
+              "\n",
+            )
           : ""),
+      { mode: 0o600, flush: true },
     );
     // Publish complete code bytes before the environment completion marker.
     await publishArtifact(temporaryArtifact, artifactPath);
     await rename(temporary, environmentPath);
-    run.manifest.status = "complete";
-    await saveRun(run);
-    console.log(
-      `Swap ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factory.address)}\nRouter: ${toBase58(router.address)}\nLP token code: ${toBase58(tokenHash)}`,
-    );
-    console.log(
-      `No pools or tokens were created. First pair creation can attach the code asset at ${artifactPath}.`,
-    );
-    return { client, factory: factory.address, router: router.address };
-  } catch (error) {
-    run.manifest.status = "failed";
-    run.manifest.error = error instanceof Error ? error.message : String(error);
-    await saveRun(run);
-    throw error;
   } finally {
     await rm(temporary, { force: true });
     await rm(temporaryArtifact, { force: true });
   }
-}
-
-async function fundPersona(run: Run, persona: Persona) {
-  await record(run, `Fund ${persona.name}`, async () => {
-    const funding = await persona.wallet.requestAirdrop(wait);
-    return { hash: funding.transactionHash, blockHeight: funding.blockHeight };
-  });
-  // Five storage deposits plus one token of remaining scheduling capacity.
-  if ((await persona.wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 6n)
-    throw new Error(
-      "Infrastructure deployer airdrop did not provide the required native-token reserve",
-    );
-}
-
-async function fundNativeReserve(run: Run, persona: Persona) {
-  await record(run, "Fund native-token reserve", () =>
-    persona.wallet.executeAndWait(
-      {
-        invocation: ERC20.v0_1.transfer.invocation(
-          NATIVE_TOKEN_ADDRESS,
-          GAS_LIMIT,
-          { receiver: NATIVE_TOKEN_ADDRESS, amount: CONTRACT_FUNDING },
-        ),
-        gasLimit: GAS_LIMIT,
-      },
-      wait,
-    ),
+  console.log(
+    `Swap ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factory.address)}\nRouter: ${toBase58(router.address)}\nLP token code: ${toBase58(tokenHash)}`,
   );
-}
-
-async function registerCode(
-  run: Run,
-  persona: Persona,
-  name: string,
-  deployment: ContractDeployment,
-) {
-  // Unused attachments are not persisted. Deploy uninitialized handler/driver
-  // instances to register their code. The first pair creation attaches LP code.
-  await record(run, `Register ${name} code`, () =>
-    persona.wallet.deployContractAndWait(
-      deployment,
-      { gasLimit: GAS_LIMIT, amount: CONTRACT_FUNDING },
-      wait,
-    ),
+  console.log(
+    `No pools or tokens were created. First pair creation can attach the code asset at ${artifactPath}.`,
   );
-}
-
-async function deployFactory(
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-  router: ContractAddress,
-  hashes: SwapHashes,
-) {
-  await record(run, "Deploy and initialize Swap factory", () =>
-    persona.wallet.deployContractAndWait(
-      deployment,
-      {
-        gasLimit: GAS_LIMIT,
-        amount: CONTRACT_FUNDING,
-        initializer: SwapFactory.v0_1.initialize.invocation(
-          deployment.address,
-          GAS_LIMIT,
-          { hashes, feeTo: null, router },
-        ),
-      },
-      wait,
-    ),
-  );
-}
-
-async function deployRouter(
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-  factory: ContractAddress,
-) {
-  await record(run, "Deploy and initialize Swap router", () =>
-    persona.wallet.deployContractAndWait(
-      deployment,
-      {
-        gasLimit: GAS_LIMIT,
-        amount: CONTRACT_FUNDING,
-        initializer: SwapRouter.v0_1.initialize.invocation(
-          deployment.address,
-          GAS_LIMIT,
-          { factory },
-        ),
-      },
-      wait,
-    ),
-  );
+  return { client, factory: factory.address, router: router.address };
 }
 
 async function verifySwap(
-  client: Client,
-  run: Run,
+  scenario: Pick<Scenario, "view" | "confirmedHeight"> & {
+    client: Pick<Scenario["client"], "getStorage">;
+  },
   factory: ContractAddress,
   router: ContractAddress,
   hashes: SwapHashes,
 ) {
-  const view = {
-    client,
-    address: factory,
-    minStateBlockHeight: run.latestBlockHeight,
-  };
-  const count = (await SwapFactory.v0_1.allPairsLength.view(view)).value;
-  const funding = (await SwapFactory.v0_1.poolFunding.view(view)).value;
-  const feeTo = (await SwapFactory.v0_1.feeTo.view(view)).value;
+  // Testkit reads state containing every confirmed setup transaction.
+  const [count, funding, feeTo] = await Promise.all([
+    scenario.view(
+      SwapFactory.v0_1.allPairsLength.viewRequest({ address: factory }),
+    ),
+    scenario.view(
+      SwapFactory.v0_1.poolFunding.viewRequest({ address: factory }),
+    ),
+    scenario.view(SwapFactory.v0_1.feeTo.viewRequest({ address: factory })),
+  ]);
   // Independent expectations from the scenario and factory's POOL_FUNDING policy.
   if (
-    count !== 0n ||
-    feeTo !== null ||
-    funding.min !== 128_000n ||
-    funding.recommended !== 10_000_000n
+    count.value !== 0n ||
+    feeTo.value !== null ||
+    funding.value.min !== 128_000n ||
+    funding.value.recommended !== 10_000_000n
   )
     throw new Error(
       "Factory must have no pools, disabled protocol fees, and the expected native funding policy",
@@ -385,12 +367,12 @@ async function verifySwap(
       .update(frame(serializeCxs(Buffer.from(domain), VarOpaqueCodec(100))))
       .update(frame(serializeCxs(BigInt(slot), Uint32Codec)))
       .digest();
-    const { item, stateBlockHeight } = await client.getStorage({
+    const { item, stateBlockHeight } = await scenario.client.getStorage({
       address,
       key,
     });
     // getStorage has no minimum-height input in this SDK; reject a stale result.
-    if (stateBlockHeight < run.latestBlockHeight)
+    if (stateBlockHeight < scenario.confirmedHeight)
       throw new Error("Swap verification received stale storage state");
     if (
       !item ||
