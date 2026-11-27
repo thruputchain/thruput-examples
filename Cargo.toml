@@ -17,6 +17,7 @@ members = [
     "contracts/error-handling-caller",
     "contracts/events",
     "contracts/fibonacci",
+    "contracts/fixed-odds",
     "contracts/mixed-impl",
     "contracts/multi-impl",
     "contracts/multi-impl-if",
