@@ -60,12 +60,34 @@ bits. There are no floats anywhere on chain.
 bytes each, one storage value per polynomial) and 15,360 key-switching samples (three per storage
 value, 3,330 bytes). Its owner creates it (`create_keyset`), uploads the pieces in any order
 (`upload_bsk`, `upload_ksk`), and seals it (`seal`). Uploads count their pieces with an `NNInt`,
-so many can share a block, and re-uploading a piece replaces it without counting it twice. Anyone
-can compute with a sealed keyset, so the contract serves any number of users with their own keys.
+so many can share a block, and re-uploading a piece replaces it without counting it twice. The
+contract serves any number of users, each with their own keys and their own funds.
+
+**Who pays for storage.** On Thruput a contract pays the deposits for the data stored under its
+address, and a caller cannot pay for the storage its call creates. So each keyset carries its own
+funds:
+
+- `create_keyset(funds)` takes `funds` native-token base units from its creator, on an allowance
+  the creator granted the contract (`adjust_allowance` on the native token, `0x00…01`). A whole
+  key takes `KEY_DEPOSIT`, about 83 native tokens; each gate `JOB_DEPOSIT`, about 0.02.
+- Every call that stores something under a keyset is its owner's (`upload_*`, `put_ciphertext`,
+  `constant`, `not`, `start_gate`), and takes the deposit out of the keyset's funds at the
+  network's rate (12,000 base units per item plus 10 per byte) before storing anything. When the
+  funds run out the call fails with `Underfunded`; `fund_keyset` adds more (anyone may pay), and
+  `withdraw` returns what is left to the owner. No account can spend what another paid in.
+- `crank` stays open to anyone: a job's storage is paid when it starts, so cranking costs only
+  gas. A job's working state is deleted when it finishes; its deposit returns to the contract,
+  not to the keyset.
+- Spent deposits stay with the stored data: this example has no way to delete a keyset.
+
+On a fresh local node the native token contract has no funds of its own to store allowances
+with; fund it with a transfer first (`live.sh` does). On Futurenet it has them.
 
 **A ciphertext** is stored under an id with its keyset (`put_ciphertext`, `constant`, `not`, and
 the result of every gate). It packs to 764 bytes (555 values of 11 bits), so it fits a storage
-value, an event and a return buffer.
+value, an event and a return buffer. Ciphertexts are public; only the key holder can decrypt them.
+A gate refuses the same ciphertext as both inputs (`SameInput`): their noise would add coherently,
+doubling it, as OpenFHE also refuses.
 
 **A job** is one bootstrapped gate. A gate costs about 1.8 × 10^9 gas and a transaction may use
 10^9, so `start_gate` stores the combined input and `crank` -- which anyone may call -- runs as
@@ -100,11 +122,15 @@ OpenFHE's `STD128` parameter set for GINX, as `BinFHEContext::GenerateBinFHECont
 The one change is the key-switching base. OpenFHE stores every multiple `j·256^k` of every
 digit, about 391,000 samples (over 400 MB), so that key switching is additions only. Base 2 needs
 one sample per bit, 15,360 samples (17 MB). Security is unchanged (it is still LWE under the same
-secret, modulus and noise). Noise is slightly higher: measured over hundreds of gates, the output
-noise has a standard deviation of 20.6 (mod 2048) at base 2 against 19.3 at base 2^8. With a
-decision margin of q/8 = 256 for a pair of inputs, that puts the estimated probability of a
-wrong gate at about 2^−59 per gate, against about 2^−67 at base 2^8 (OpenFHE states 2^−68 for
-`STD128`).
+secret, modulus and noise). Noise is slightly higher. Over 384 bootstrapped outputs
+(`every_gate_every_input`), the output noise has a standard deviation of 20.6 (mod 2048); during
+development, with `KS_BASE_BITS = 8` and `KS_GROUP = 1` in `params.rs`, it measured 19.3.
+
+The resulting failure probability is an estimate, and this example's own, not OpenFHE's: assuming
+Gaussian noise and two independent inputs, a decision margin of q/8 = 256 against an input-pair
+standard deviation of 20.6 × √2 gives about 2^−59 per gate, and about 2^−51 at the 95% upper
+confidence bound of the measured standard deviation. (The same arithmetic at base 2^8 gives about
+2^−67; OpenFHE states 2^−68 for `STD128`.)
 
 ## Costs
 
@@ -112,17 +138,12 @@ Measured on a local node configured like the hosted network (`live.sh`):
 
 | | |
 | --- | --- |
-| One gate (AND, OR, NAND, NOR, XOR, XNOR) | 3 transactions: `start_gate` (0.26M gas), `crank` (~996M), `crank` (~790M); 1.78 × 10^9 gas; about 3.5 s locally |
+| One gate (AND, OR, NAND, NOR, XOR, XNOR) | 3 transactions: `start_gate` (0.30M gas), `crank` (~996M), `crank` (~790M); 1.79 × 10^9 gas; about 3.5 s locally |
 | NOT, constants | one call, no bootstrap |
 | One blind-rotation step | about 3.1M gas (24 cold reads of 4 KiB, 8 NTTs of size 1024); 2.4M for the last 251 coefficients |
-| Key upload | 2,614 transactions of at most 0.56M gas (6 polynomials or 7 sample groups each); 1.4 × 10^9 gas in all |
-| Key size and deposit | 63.3 MB in 16,408 storage values; about 83 native tokens, held by the contract |
+| Key upload | 2,614 transactions of at most 0.63M gas (6 polynomials or 7 sample groups each); 1.6 × 10^9 gas in all |
+| Key size and deposit | 63.3 MB in 16,408 storage values; about 83 native tokens, from the keyset's funds |
 | Full adder (5 gates, depth 3) | 15 transactions, about 16 s locally |
-
-**Storage is paid by the contract.** On Thruput a contract funds the deposits for data stored
-under its address, and a caller cannot pay for the storage its call creates. So the contract
-needs about 83 native tokens of balance for every keyset uploaded to it. Fund it before
-uploading. Deposits are refundable, but this example has no way to delete a keyset.
 
 ## Run it
 
@@ -173,9 +194,9 @@ any other network:
 
 ```sh
 thruput build -p fhe --stack-size 16K
-thruput deploy --artifact target/thruput/fhe.rv32a --fund 100 -y   # the contract pays deposits
-thruput keys export NAME -y > signer.key                            # a funded key; keep it out of git
-export THRUPUT_RPC_URL=... FHE_CONTRACT=<address> FHE_SIGNER=signer.key
+thruput deploy --artifact target/thruput/fhe.rv32a --fund 1 -y   # keysets bring their own funds
+mkdir -p .local && thruput keys export NAME -y > .local/signer.key  # a funded key; .local/ is git-ignored
+export THRUPUT_RPC_URL=... FHE_CONTRACT=<address> FHE_SIGNER=.local/signer.key
 cargo run -p fhe-client --features node --bin fhe-demo -- keyset         # prints the keyset id
 cargo run -p fhe-client --features node --bin fhe-demo -- nand 0 1 1
 cargo run -p fhe-client --features node --bin fhe-demo -- adder 0 1 1 0

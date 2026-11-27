@@ -50,7 +50,7 @@ async fn gates_on_a_node() {
         // account of its own signing, which sends calls with more gas than Testkit's default.
         ctx.fund(600 * TOKEN).await?;
         let deployed = ctx
-            .deploy_artifact("fhe", DeployOptions::funded(150 * TOKEN))
+            .deploy_artifact("fhe", DeployOptions::funded(TOKEN))
             .await?;
         let account = Account::connect(&env("THRUPUT_RPC_URL"), None, [0x5e; 32])
             .await
@@ -58,6 +58,11 @@ async fn gates_on_a_node() {
         let mut native = [0u8; 32];
         native[31] = 1;
         let token = ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(native));
+        // The native token pays for its own storage, such as the allowance a keyset's creator
+        // grants; on a fresh local node it has none.
+        token
+            .transfer(&ContractAddress::from(native), TOKEN as i128)
+            .await?;
         token
             .transfer(&account.address(), (400 * TOKEN) as i128)
             .await?;
@@ -72,7 +77,8 @@ async fn gates_on_a_node() {
         let ek = sk.eval_key(&mut rng);
         println!("keygen: {:.1} s", started.elapsed().as_secs_f64());
 
-        let keyset = fhe.create_keyset().await.map_err(fhe_error)?;
+        let funds = KEY_DEPOSIT + 50 * (JOB_DEPOSIT + 2 * deposit(8 + LWE_BYTES));
+        let keyset = fhe.create_keyset(funds).await.map_err(fhe_error)?;
         let started = Instant::now();
         let mut upload_gas = (0u64, 0u64);
         fhe.upload_keyset(keyset, &ek, 32, |done, total, receipt| {
@@ -145,12 +151,16 @@ async fn gates_on_a_node() {
             .put_ciphertext(keyset, &sk.encrypt(true, &mut enc))
             .await
             .map_err(fhe_error)?;
+        let cy = fhe
+            .put_ciphertext(keyset, &sk.encrypt(true, &mut enc))
+            .await
+            .map_err(fhe_error)?;
         let (job, _): (u64, _) = fhe
             .account
             .call(
                 fhe.address,
                 "start_gate",
-                &(Gate::And as u32, cx, cx),
+                &(Gate::And as u32, cx, cy),
                 20_000_000,
             )
             .await

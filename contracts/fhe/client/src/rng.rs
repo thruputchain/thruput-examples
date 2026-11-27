@@ -74,7 +74,9 @@ impl Rng {
     }
 
     /// A discrete Gaussian sample with standard deviation [`fhe_core::params::SIGMA`], by
-    /// inversion of its cumulative distribution (tail cut at 16 sigma).
+    /// inversion of its cumulative distribution. The table runs to 16 sigma, but in `f64` the
+    /// cumulative probability reaches 1 at about |k| = 27 (8.5 sigma), so no sample is larger;
+    /// what is cut off has probability below 2^-53.
     pub fn gaussian(&mut self) -> i32 {
         let table = cdt();
         let u = self.next_u64() >> 1;

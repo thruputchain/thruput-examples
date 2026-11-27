@@ -31,6 +31,7 @@ remote = ["thruput-sdk/remote"]
 
 [dependencies]
 thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
 fhe-core = { path = "../core" }
 
 [dev-dependencies]
@@ -38,6 +39,5 @@ fhe = { path = ".", features = ["dev", "remote"] }
 fhe-client = { path = "../client", features = ["node"] }
 # `tests/testkit_gate.rs` runs the contract on a node.
 thruput-testkit = { workspace = true }
-thruput-erc20-if = { workspace = true }
 thruput-sdk = { workspace = true, features = ["remote"] }
 tokio = { workspace = true }

@@ -1,15 +1,23 @@
 //! The contract: keysets, ciphertexts, and gate evaluations that span transactions.
 //!
-//! * A **keyset** is one user's public evaluation key. Its owner creates it, uploads its
-//!   [`BSK_POLYS`] bootstrapping-key polynomials and [`KS_GROUPS`] groups of key-switching samples in any
-//!   order over many transactions, and seals it. Anyone can then compute with it.
+//! * A **keyset** is one user's public evaluation key, and the funds that pay for its storage.
+//!   Its owner creates it with a payment of native tokens, uploads its [`BSK_POLYS`]
+//!   bootstrapping-key polynomials and [`KS_GROUPS`] groups of key-switching samples in any order
+//!   over many transactions, and seals it.
+//! * **Who pays.** On Thruput a contract pays the deposits for what it stores, and a caller
+//!   cannot pay for the storage its call creates. So every keyset carries its own funds, and
+//!   every call that stores something under a keyset is its owner's and takes the deposit out of
+//!   those funds ([`charge`](Fhe::charge)), failing with `Underfunded` before anything is stored
+//!   when they run out. No account can spend what another account paid in.
 //! * A **ciphertext** is an encrypted bit, stored under an id together with its keyset.
 //!   [`put_ciphertext`](Fhe::put_ciphertext) stores one, [`not`](Fhe::not) and
 //!   [`constant`](Fhe::constant) make one without any key, and a finished job makes one.
+//!   Ciphertexts are public: anyone can read them, only the key holder can decrypt them.
 //! * A **job** is one bootstrapped gate. [`start_gate`](Fhe::start_gate) combines the two
 //!   inputs linearly; [`crank`](Fhe::crank), which anyone may call, runs as many blind-rotation
 //!   steps as the transaction's gas allows, then the key switch, saving its progress between
-//!   calls. The last crank stores the result and emits [`GateEvaluated`].
+//!   calls. The last crank stores the result and emits [`GateEvaluated`]. A job's storage is
+//!   paid for when it starts, so cranking costs the cranker only gas.
 //!
 //! # Memory
 //!
@@ -28,6 +36,8 @@ use fhe_core::bootstrap::{
 };
 use fhe_core::params::*;
 use fhe_core::{Gate, Lwe, lwe};
+use thruput_erc20_if::ERC20Client;
+use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 use thruput_sdk::storage::*;
 use thruput_sdk::*;
 
@@ -58,6 +68,16 @@ pub enum FheError {
     InvalidCiphertext = 9,
     /// The job has finished.
     JobDone = 10,
+    /// The keyset's funds cannot pay for the storage this call would create. Add funds with
+    /// `fund_keyset`.
+    Underfunded = 11,
+    /// A gate's two inputs are the same ciphertext. Their noise would add coherently (`2e`
+    /// rather than `e1 + e2`), well past the margin the parameters are chosen for.
+    SameInput = 12,
+    /// A bootstrapping-key value at or above the ring modulus.
+    InvalidKey = 13,
+    /// The transaction's gas cannot pay for even one step; send the crank with more gas.
+    NotEnoughGas = 14,
 }
 
 /// A user's evaluation key.
@@ -118,6 +138,10 @@ pub struct GateEvaluated<'a> {
 pub struct Fhe {
     keyset_count: NNInt,
     keysets: Map<u64, Value<Keyset>>,
+    // What each keyset may still spend on storage, in native-token base units. Its creator pays
+    // it in; every call that stores something under the keyset takes the deposit out of it, so
+    // no account can spend funds it did not provide.
+    funds: Map<u64, Balance>,
     // Pieces of each evaluation key uploaded so far. Increments merge, so uploads of different
     // pieces can share a block.
     uploaded: Map<u64, NNInt>,
@@ -217,6 +241,22 @@ impl Fhe {
             .or_throw(FheError::NotFound)
     }
 
+    fn owned_keyset(&self, id: u64) -> Keyset {
+        let keyset = self.keyset(id);
+        ensure(keyset.owner == get_caller(), FheError::NotOwner);
+        keyset
+    }
+
+    /// Take `amount` out of a keyset's funds, or throw `Underfunded`. The decrease merges with
+    /// other calls' decreases in the same block as long as the funds cover all of them.
+    fn charge(&mut self, keyset: u64, amount: u128) {
+        self.funds
+            .at_mut(&keyset)
+            .try_decrease(amount as i128)
+            .ok()
+            .or_throw(FheError::Underfunded);
+    }
+
     fn owned_open_keyset(&self, id: u64) -> Keyset {
         let keyset = self.keyset(id);
         ensure(keyset.owner == get_caller(), FheError::NotOwner);
@@ -257,7 +297,19 @@ impl Fhe {
         self.owned_open_keyset(keyset);
         ensure(data.len().is_multiple_of(size), FheError::InvalidUpload);
         let count = data.len() / size;
-        ensure(first as usize + count <= limit, FheError::InvalidUpload);
+        // In u64: on RV32 a usize sum could wrap past the limit.
+        ensure(
+            first as u64 + count as u64 <= limit as u64,
+            FheError::InvalidUpload,
+        );
+        if !ks {
+            // A key value at or above Q would make the step's lazy arithmetic overflow.
+            let words = data.as_chunks::<4>().0;
+            ensure(
+                words.iter().all(|w| u32::from_le_bytes(*w) < RING_Q),
+                FheError::InvalidKey,
+            );
+        }
         let mut added = 0;
         for (j, piece) in data.chunks_exact(size).enumerate() {
             let index = first + j as u32;
@@ -273,20 +325,58 @@ impl Fhe {
             slot.set(piece);
         }
         self.uploaded.at_mut(&keyset).inc(added);
+        // Only new pieces add storage; a replaced piece keeps its deposit.
+        self.charge(keyset, added as u128 * deposit(size));
     }
 }
 
 #[contract(throws = FheError, emits(KeysetSealed, GateStarted, GateEvaluated))]
 impl Fhe {
-    /// Create an empty keyset owned by the caller.
-    pub fn create_keyset(&mut self) -> u64 {
+    /// Create an empty keyset owned by the caller, paying `funds` native-token base units into
+    /// it from the caller's balance. The caller must first allow this contract to spend them
+    /// (`adjust_allowance` on the native token). A whole key takes [`KEY_DEPOSIT`].
+    pub fn create_keyset(&mut self, funds: u128) -> u64 {
+        let owner = get_caller();
+        ERC20Client::new(&ADDRESS_NATIVE_TOKEN).transfer_from(
+            &owner,
+            &get_current_address(),
+            funds as i128,
+        );
         let id = count(&self.keyset_count);
         self.keyset_count.set(id as i128 + 1);
         self.keysets.at_mut(&id).set(&Keyset {
-            owner: get_caller(),
+            owner,
             sealed: false,
         });
+        self.funds.at_mut(&id).increase(funds as i128);
+        // The header, the upload counter and the funds themselves.
+        self.charge(id, 3 * deposit(64));
         id
+    }
+
+    /// Add funds to a keyset, from the caller's balance (on an allowance, as for
+    /// `create_keyset`). Anyone may pay for anyone's keyset.
+    pub fn fund_keyset(&mut self, keyset: u64, amount: u128) {
+        self.keyset(keyset);
+        ERC20Client::new(&ADDRESS_NATIVE_TOKEN).transfer_from(
+            &get_caller(),
+            &get_current_address(),
+            amount as i128,
+        );
+        self.funds.at_mut(&keyset).increase(amount as i128);
+    }
+
+    /// What a keyset may still spend on storage, in native-token base units.
+    pub fn keyset_funds(&self, keyset: u64) -> u128 {
+        self.funds.at(&keyset).get() as u128
+    }
+
+    /// Return `amount` of a keyset's unspent funds to its owner. Deposits already spent stay
+    /// with the stored data: this example has no way to delete a keyset.
+    pub fn withdraw(&mut self, keyset: u64, amount: u128) {
+        let owner = self.owned_keyset(keyset).owner;
+        self.charge(keyset, amount);
+        ERC20Client::new(&ADDRESS_NATIVE_TOKEN).transfer(&owner, amount as i128);
     }
 
     /// Upload consecutive bootstrapping-key polynomials ([`POLY_BYTES`] each), the first at index
@@ -322,16 +412,20 @@ impl Fhe {
         self.keyset(keyset)
     }
 
-    /// Store a ciphertext encrypted under `keyset`'s secret key; returns its id.
+    /// Store a ciphertext encrypted under `keyset`'s secret key; returns its id. Only the
+    /// keyset's owner may store under it, since the keyset's funds pay the deposit; the same holds
+    /// for `constant`, `not` and `start_gate`.
     pub fn put_ciphertext(&mut self, keyset: u64, ciphertext: &[u8]) -> u64 {
-        self.keyset(keyset);
+        self.owned_keyset(keyset);
         let ct = Lwe::from_bytes(ciphertext).or_throw(FheError::InvalidCiphertext);
+        self.charge(keyset, deposit(8 + LWE_BYTES));
         self.store_ciphertext(keyset, &ct)
     }
 
     /// A noiseless encryption of a public bit.
     pub fn constant(&mut self, keyset: u64, bit: bool) -> u64 {
-        self.keyset(keyset);
+        self.owned_keyset(keyset);
+        self.charge(keyset, deposit(8 + LWE_BYTES));
         self.store_ciphertext(keyset, &Lwe::constant(bit))
     }
 
@@ -346,6 +440,8 @@ impl Fhe {
     /// NOT needs no key and no bootstrap: the result is ready at once.
     pub fn not(&mut self, x: u64) -> u64 {
         let (keyset, ct) = self.load_ciphertext(x);
+        self.owned_keyset(keyset);
+        self.charge(keyset, deposit(8 + LWE_BYTES));
         self.store_ciphertext(keyset, &lwe::not(&ct))
     }
 
@@ -355,8 +451,11 @@ impl Fhe {
         let g = Gate::from_index(gate).or_throw(FheError::InvalidGate);
         let (kx, cx) = self.load_ciphertext(x);
         let (ky, cy) = self.load_ciphertext(y);
+        ensure(x != y, FheError::SameInput);
         ensure(kx == ky, FheError::KeysetMismatch);
-        ensure(self.keyset(kx).sealed, FheError::NotSealed);
+        ensure(self.owned_keyset(kx).sealed, FheError::NotSealed);
+        // Everything the job will store, paid now: anyone may crank, and cranks charge nothing.
+        self.charge(kx, JOB_DEPOSIT);
         let combined = lwe::combine(g, &cx, &cy);
         let id = count(&self.job_count);
         self.job_count.set(id as i128 + 1);
@@ -393,10 +492,13 @@ impl Fhe {
         let mut state = self.get_job(job);
         ensure(state.stage != DONE, FheError::JobDone);
         let gate = Gate::from_index(state.gate).or_throw(FheError::InvalidGate);
+        let before = (state.stage, state.next);
         if state.stage == ROTATING && !self.rotate(job, &mut state, gate) {
+            ensure(state.next != before.1, FheError::NotEnoughGas);
             return state;
         }
         self.switch(job, &mut state);
+        ensure((state.stage, state.next) != before, FheError::NotEnoughGas);
         state
     }
 }

@@ -7,11 +7,13 @@
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 
-use fhe::FheClient;
+use fhe::{FheClient, FheError};
 use fhe_client::node::{GROUPS_PER_UPLOAD, POLYS_PER_UPLOAD};
 use fhe_client::{Rng, SecretKey};
 use fhe_core::Lwe;
 use fhe_core::params::{KS_GROUP_BYTES, POLY_BYTES};
+use thruput_erc20_if::ERC20Client;
+use thruput_sdk::genesis_addresses::ADDRESS_NATIVE_TOKEN;
 use thruput_sdk::*;
 
 static NONCE: SHA256Hash = thruput_sdk::sha256_static!("FHE_RV32_NONCE");
@@ -33,25 +35,31 @@ fn ciphertexts_and_uploads_rv32() {
         .with_max_bytestring_len(4096)
         .build();
     let hash = env.setup_create_contract(&contract);
+    let owner = ContractAddress::named("owner");
+    env.setup_grant_storage_tokens(&ADDRESS_NATIVE_TOKEN, 1_000_000_000);
+    env.setup_grant_storage_tokens(&owner, 1_000_000_000);
     let mut rng = Rng::from_phrase("rv32");
     let sk = SecretKey::generate(&mut rng);
     env.transact(|tx| {
-        tx.call(&ContractAddress::named("owner"))
-            .run(AssertUnwindSafe(|| {
-                let addr = deploy_contract(&NONCE, &hash);
-                let fhe = FheClient::new(&addr);
-                assert_eq!(fhe.create_keyset(), 0);
-                let id = fhe.put_ciphertext(0, &sk.encrypt(true, &mut rng).to_bytes());
-                let not = fhe.get_ciphertext(fhe.not(id));
-                assert!(!sk.decrypt(&Lwe::from_bytes(&not[8..]).unwrap()));
-                // The node driver's upload sizes fit the guest's memory beside the calldata.
-                fhe.upload_bsk(0, 0, &vec![1u8; POLYS_PER_UPLOAD * POLY_BYTES]);
-                fhe.upload_ksk(0, 0, &vec![1u8; GROUPS_PER_UPLOAD * KS_GROUP_BYTES]);
-                assert_eq!(
-                    fhe.uploaded(0),
-                    (POLYS_PER_UPLOAD + GROUPS_PER_UPLOAD) as u64
-                );
-            }))
+        tx.call(&owner).run(AssertUnwindSafe(|| {
+            let addr = deploy_contract(&NONCE, &hash);
+            let fhe = FheClient::new(&addr);
+            ERC20Client::new(&ADDRESS_NATIVE_TOKEN).adjust_allowance(&addr, 10_000_000);
+            assert_eq!(fhe.create_keyset(10_000_000), 0);
+            let id = fhe.put_ciphertext(0, &sk.encrypt(true, &mut rng).to_bytes());
+            let not = fhe.get_ciphertext(fhe.not(id));
+            assert!(!sk.decrypt(&Lwe::from_bytes(&not[8..]).unwrap()));
+            // The node driver's upload sizes fit the guest's memory beside the calldata.
+            fhe.upload_bsk(0, 0, &vec![1u8; POLYS_PER_UPLOAD * POLY_BYTES]);
+            fhe.upload_ksk(0, 0, &vec![1u8; GROUPS_PER_UPLOAD * KS_GROUP_BYTES]);
+            assert_eq!(
+                fhe.uploaded(0),
+                (POLYS_PER_UPLOAD + GROUPS_PER_UPLOAD) as u64
+            );
+            // On a 32-bit guest, an index near u32::MAX must not wrap past the bound.
+            let refused = fhe.try_upload_bsk(0, u32::MAX, &[1u8; POLY_BYTES]);
+            assert_eq!(refused.unwrap_err().try_as(), Some(FheError::InvalidUpload));
+        }))
     })
     .assert_success();
 }

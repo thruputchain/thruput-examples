@@ -21,6 +21,7 @@ use std::time::Instant;
 use fhe_client::node::{Account, Fhe, Result};
 use fhe_client::{Rng, SecretKey};
 use fhe_core::Gate;
+use fhe_core::params::{JOB_DEPOSIT, KEY_DEPOSIT, LWE_BYTES, deposit};
 use thruput_xdr::base58;
 use thruput_xdr::types::ContractAddress;
 
@@ -76,7 +77,10 @@ async fn run(args: &[String], contract: ContractAddress, secret: [u8; 32]) -> Re
         Some("address") => println!("{:?}", fhe.account.address()),
         Some("keyset") => {
             let ek = sk.eval_key(&mut rng);
-            let keyset = fhe.create_keyset().await?;
+            // The key's deposit, plus room for 100 gates and their inputs.
+            let funds = KEY_DEPOSIT + 100 * (JOB_DEPOSIT + 2 * deposit(8 + LWE_BYTES));
+            let keyset = fhe.create_keyset(funds).await?;
+            println!("keyset {keyset}: funded with {funds} base units");
             println!("keyset {keyset}: uploading");
             let started = Instant::now();
             // Few transactions in flight: the network is shared.

@@ -131,3 +131,31 @@ pub const KS_SAMPLE_BYTES: usize = (LWE_N + 1) * 2;
 pub const KS_GROUP_BYTES: usize = KS_GROUP * KS_SAMPLE_BYTES;
 /// Bytes of a packed LWE ciphertext: `LWE_N + 1` values of 11 bits.
 pub const LWE_BYTES: usize = ((LWE_N + 1) * 11).div_ceil(8);
+
+/// What the network charges in deposit for one stored item, in native-token base units: a base
+/// cost plus a cost per byte (`storageCosts` in `getChainConfig`, the same on local and hosted
+/// nodes today). The contract charges each keyset's funds at this rate for the storage it makes, and a
+/// client funds a keyset by the same rule.
+pub const ITEM_COST: u128 = 12_000;
+pub const BYTE_COST: u128 = 10;
+
+/// The deposit for one item of `bytes` bytes. Small typed values are counted as 64 bytes.
+pub const fn deposit(bytes: usize) -> u128 {
+    ITEM_COST + BYTE_COST * bytes as u128
+}
+
+/// What a gate job may store before it finishes: its header, the combined input, the two
+/// accumulator polynomials, the extracted ciphertext, the partial key switch, and the result.
+/// Charged in full by `start_gate`; the working state is deleted when the job finishes.
+pub const JOB_DEPOSIT: u128 = deposit(64)
+    + deposit(LWE_BYTES)
+    + 2 * deposit(POLY_BYTES)
+    + deposit((RING_N + 1) * 2)
+    + deposit(KS_SAMPLE_BYTES)
+    + deposit(8 + LWE_BYTES);
+
+/// The deposit a whole evaluation key takes, about 83 native tokens: what `create_keyset` should
+/// be given, plus something for ciphertexts and jobs.
+pub const KEY_DEPOSIT: u128 = BSK_POLYS as u128 * deposit(POLY_BYTES)
+    + KS_GROUPS as u128 * deposit(KS_GROUP_BYTES)
+    + 3 * deposit(64);

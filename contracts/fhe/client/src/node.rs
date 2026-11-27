@@ -33,6 +33,13 @@ use thruput_signing::{
 use thruput_xdr::types::{ContractAddress, NetworkHash as XdrNetworkHash};
 use xdrs::{ReadXDR, WriteXDR};
 
+/// The native token's address, `0x00…01`; it speaks the ERC20 interface.
+pub fn native_token() -> ContractAddress {
+    let mut bytes = [0u8; 32];
+    bytes[31] = 1;
+    ContractAddress::from(bytes)
+}
+
 /// The contract's interface identity: its storage struct and crate version.
 pub const INTERFACE: (&str, &str) = ("Fhe", "0.1.0");
 
@@ -145,10 +152,22 @@ impl Account {
         self.account.address()
     }
 
-    /// Sign and submit one call of `method` on `target`, without waiting.
+    /// Sign and submit one call of `method` on the FHE contract at `target`, without waiting.
     pub async fn submit<A: WriteXDR + ?Sized>(
         &mut self,
         target: ContractAddress,
+        method: &str,
+        args: &A,
+        gas: u64,
+    ) -> Result<TxHash> {
+        self.submit_to(target, INTERFACE, method, args, gas).await
+    }
+
+    /// Sign and submit one call of `method` of `interface` (name, version) on `target`.
+    pub async fn submit_to<A: WriteXDR + ?Sized>(
+        &mut self,
+        target: ContractAddress,
+        interface: (&str, &str),
         method: &str,
         args: &A,
         gas: u64,
@@ -158,7 +177,7 @@ impl Account {
         let tx = build_default_wallet_call_transaction(BuildDefaultWalletCallTransaction {
             account: &self.account,
             target_address: target,
-            target_entrypoint: entrypoint_id(INTERFACE.0, INTERFACE.1, method),
+            target_entrypoint: entrypoint_id(interface.0, interface.1, method),
             target_calldata: &calldata,
             target_gas_limit: gas,
             gas_limit: gas + WALLET_GAS,
@@ -290,10 +309,24 @@ pub struct GateReport {
 }
 
 impl Fhe {
-    pub async fn create_keyset(&mut self) -> Result<u64> {
+    /// Create a keyset paid with `funds` native-token base units from this account: first allow
+    /// the contract to take them (`adjust_allowance` on the native token), then create. A whole
+    /// key takes [`KEY_DEPOSIT`]; gates take [`JOB_DEPOSIT`] each.
+    pub async fn create_keyset(&mut self, funds: u128) -> Result<u64> {
+        let allowance = self
+            .account
+            .submit_to(
+                native_token(),
+                ("ERC20", "0.1.0"),
+                "adjust_allowance",
+                &(self.address, funds as i128),
+                CALL_GAS,
+            )
+            .await?;
+        self.account.wait(allowance).await?;
         let (id, _) = self
             .account
-            .call(self.address, "create_keyset", &(), CALL_GAS)
+            .call(self.address, "create_keyset", &funds, CALL_GAS)
             .await?;
         Ok(id)
     }
@@ -397,11 +430,25 @@ impl Fhe {
             .await?;
         transactions.push((receipt.transaction_hash, receipt.gas_used));
         loop {
-            let (state, receipt): (Job, _) = self
+            let state = match self
                 .account
-                .call(self.address, "crank", &job, CRANK_GAS)
-                .await?;
-            transactions.push((receipt.transaction_hash, receipt.gas_used));
+                .call::<_, Job>(self.address, "crank", &job, CRANK_GAS)
+                .await
+            {
+                Ok((state, receipt)) => {
+                    transactions.push((receipt.transaction_hash, receipt.gas_used));
+                    state
+                }
+                // Anyone may crank, so another account may have finished the job first; its
+                // crank fails with `JobDone`. Read the job before giving up.
+                Err(e) => {
+                    let state: Job = self.account.view(self.address, "get_job", &job).await?;
+                    if state.stage != DONE {
+                        return Err(e);
+                    }
+                    state
+                }
+            };
             if state.stage == DONE {
                 let output = self.get_ciphertext(state.output).await?;
                 return Ok(GateReport {
