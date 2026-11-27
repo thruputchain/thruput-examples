@@ -133,6 +133,16 @@ jobs:
       - name: Run native tests
         run: cargo test --all --locked
 
+      # `cargo test --all` enables software U256 arithmetic for every crate,
+      # because thruput-client turns it on. Run the crates that use U256 without
+      # Testkit on their own, so their tests use the native executor, which
+      # computes U256 division only inside a transaction.
+      - name: Run U256 crates on the native executor
+        run: |
+          for p in oracle-consumer swap-pair swap-driver swap-router swap-factory swap-gsr-driver swap-clvr-driver; do
+              cargo test -p "$p" --locked
+          done
+
       - name: Cache thruput-cli
         id: cache-thruput
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
