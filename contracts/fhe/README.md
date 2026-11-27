@@ -75,7 +75,9 @@ funds, and no account can spend what another paid in:
 - `create_keyset(funds)` takes `funds` native-token base units from its creator, on an allowance
   the creator granted the contract (`adjust_allowance` on the native token, `0x00…01`), and
   reserves the whole key's deposit at once (about 83 native tokens). Uploads then charge nothing
-  and touch no shared balance, so many can share a block.
+  and touch no shared balance, only their own pieces and a mergeable counter, so they do not
+  contend with each other: 2,614 uploads took 48 s on a local node with 32 in flight, and 674 s
+  on Futurenet with 8.
 - Every other call that stores something under a keyset is its owner's (`put_ciphertext`,
   `constant`, `not`, `start_gate`), and takes its deposit out of the keyset's funds before
   storing anything; a gate prepays everything its job will store, about 0.02 native tokens. When
