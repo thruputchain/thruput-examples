@@ -60,6 +60,7 @@ thruput-signed-op = { version = "=0.1.79" }
 
 # from thruput-tools:
 thruput-json-rpc-client = { version = "=0.48.0" }
+thruput-client = { version = "=0.48.0" }
 thruput-json-rpc-types = { version = "=0.48.0" }
 thruput-cli = { package = "thruput", version = "=0.48.0" }
 thruput-signing = { version = "=0.48.0" }

@@ -1,29 +1,37 @@
-//! Driving the FHE contract on a node: an account that signs its own transactions (so that a
-//! crank can carry up to the chain's 1e9 gas, where Testkit's agents use 1e7), and the calls a
-//! user makes: create and upload a keyset, store ciphertexts, start gates and crank them.
+//! Driving the FHE contract on a node over JSON-RPC: an account that signs its own transactions
+//! (so that a crank can carry up to the chain's 1e9 gas), and the calls a user makes: create and
+//! upload a keyset, store ciphertexts, start gates and crank them.
 //!
 //! Every call goes through the account's `DefaultWallet.execute`, so the contract sees the
 //! account's address as its caller. Uploads are submitted many at a time and then awaited, since
-//! the contract counts them commutatively.
+//! the contract counts them commutatively. Nothing is ever resubmitted: an uncertain submission
+//! is an error that names the transaction.
 
 use crate::EvalKey;
 use fhe_core::params::*;
 use fhe_core::{Gate, Lwe};
-use thruput_json_rpc_client::DecodedResponse;
+use thruput_client::codec::method_entrypoint_id as entrypoint_id;
+use thruput_json_rpc_client::native::NativeClient;
+use thruput_json_rpc_client::native::receipt::{ReceiptPollConfig, poll_receipt};
+use thruput_json_rpc_client::{DecodedResponse, HttpClient, HttpClientBuilder};
+use thruput_json_rpc_types::NetworkHash;
+use thruput_json_rpc_types::base58::Base58;
+use thruput_json_rpc_types::hex::{HexBytes, decode_prefixed_hex};
+use thruput_json_rpc_types::requests::{
+    EmptyRequest, SendTransactionRequest, SimulateInvocationRequest,
+};
+use thruput_json_rpc_types::responses::{InvocationOutput, ReceiptExecution, TransactionReceipt};
+use thruput_json_rpc_types::transaction::TxHash;
 use thruput_signing::default_wallet::{
     BuildDefaultWalletCallTransaction, build_default_wallet_call_transaction,
     decode_default_wallet_call_return,
 };
 use thruput_signing::{
     DEFAULT_PUBKEY_ACCOUNT_NONCE, LocalSigner, PubkeyAccount, SignTransactionParams,
-    sign_and_encode_transaction_hex,
+    sign_and_encode_transaction_hex, transaction_hash,
 };
-use thruput_testkit::rpc_types::requests::EmptyRequest;
-use thruput_testkit::rpc_types::responses::{ReceiptExecution, TransactionReceipt};
-use thruput_testkit::rpc_types::transaction::TxHash;
-use thruput_testkit::xdr::types::{ContractAddress, NetworkHash};
-use thruput_testkit::xdrs::{self, ReadXDR, WriteXDR};
-use thruput_testkit::{AgentContext, Contract, Network, Result, TestkitError, entrypoint_id};
+use thruput_xdr::types::{ContractAddress, NetworkHash as XdrNetworkHash};
+use xdrs::{ReadXDR, WriteXDR};
 
 /// The contract's interface identity: its storage struct and crate version.
 pub const INTERFACE: (&str, &str) = ("Fhe", "0.1.0");
@@ -44,7 +52,6 @@ pub const CALL_GAS: u64 = 20_000_000;
 
 /// The contract's `Job`, as returned by `crank` and `get_job`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, xdrs::WriteXDR, xdrs::ReadXDR)]
-#[xdr(crate = "thruput_testkit::xdrs")]
 pub struct Job {
     pub keyset: u64,
     pub gate: u32,
@@ -55,37 +62,65 @@ pub struct Job {
 
 pub const DONE: u32 = 2;
 
-fn error(field: &'static str, detail: impl std::fmt::Display) -> TestkitError {
-    TestkitError::Manifest {
-        field,
-        detail: detail.to_string(),
+/// What went wrong talking to the node.
+#[derive(Debug)]
+pub struct Error(pub String);
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
-/// A key-pair account with its own signer.
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+fn error(context: &str, detail: impl std::fmt::Debug) -> Error {
+    Error(format!("{context}: {detail:?}"))
+}
+
+/// A key-pair account with its own signer, connected to one node.
 pub struct Account {
-    pub network: Network,
+    client: NativeClient<HttpClient>,
     signer: LocalSigner,
     account: PubkeyAccount,
     network_hash: NetworkHash,
+    signing_hash: XdrNetworkHash,
     nonce: u64,
     /// The method each submitted transaction calls, for error messages.
     methods: std::collections::HashMap<TxHash, String>,
 }
 
 impl Account {
-    pub async fn new(network: Network, secret_key: [u8; 32]) -> Result<Self> {
-        let signer = LocalSigner::from_secret_key(secret_key);
-        let client = network.client().ok_or(TestkitError::Offline {
-            operation: "getNetworkInfo",
-        })?;
+    /// Connect to `rpc_url`. With `expected_network`, refuse a node that serves another network
+    /// before anything is signed.
+    pub async fn connect(
+        rpc_url: &str,
+        expected_network: Option<&str>,
+        secret_key: [u8; 32],
+    ) -> Result<Self> {
+        let transport = HttpClientBuilder::default()
+            .build(rpc_url)
+            .map_err(|e| error("connect", e))?;
+        let client = NativeClient::new(transport);
         let info = client
             .get_network_info(EmptyRequest {})
             .await
-            .map_err(|e| error("networkHash", e))?;
+            .map_err(|e| error("getNetworkInfo", e))?;
         let DecodedResponse::Known(info) = info else {
-            return Err(error("networkHash", "unsupported network identity"));
+            return Err(Error("getNetworkInfo: unsupported response".into()));
         };
+        let network_hash = info.network_hash;
+        if let Some(expected) = expected_network
+            && Base58(network_hash.0).to_string() != expected
+        {
+            return Err(Error(format!(
+                "{rpc_url} serves network {}, not {expected}",
+                Base58(network_hash.0)
+            )));
+        }
+        let signer = LocalSigner::from_secret_key(secret_key);
         let account = PubkeyAccount::from_public_key_bytes(
             signer.verifying_key_bytes(),
             DEFAULT_PUBKEY_ACCOUNT_NONCE,
@@ -96,10 +131,11 @@ impl Account {
             .unwrap()
             .as_micros() as u64;
         Ok(Account {
-            network,
+            client,
             signer,
             account,
-            network_hash: NetworkHash::from(info.network_hash.0),
+            network_hash,
+            signing_hash: XdrNetworkHash::from(network_hash.0),
             nonce,
             methods: Default::default(),
         })
@@ -130,27 +166,55 @@ impl Account {
             nonce: self.nonce,
         })
         .map_err(|e| error("transaction", e))?;
+        let tx_hash = TxHash(Base58(transaction_hash(&tx).map_err(|e| error("hash", e))?));
         let tx_hex = sign_and_encode_transaction_hex(
             tx,
             &self.signer,
             SignTransactionParams::default(),
-            &self.network_hash,
+            &self.signing_hash,
         )
         .map_err(|e| error("signing", e))?;
-        let tx = self.network.submit_raw(tx_hex).await?;
-        self.methods.insert(tx, method.to_owned());
-        Ok(tx)
+        let bytes = decode_prefixed_hex(&tx_hex).map_err(|e| error("signing", e))?;
+        let ack = self
+            .client
+            .send_transaction(SendTransactionRequest {
+                signed_transaction: HexBytes(bytes),
+            })
+            .await
+            .map_err(|e| error(&format!("{method}: sendTransaction for {tx_hash:?}"), e))?;
+        match ack {
+            DecodedResponse::Known(ack) if ack.transaction_hash == tx_hash => {}
+            other => {
+                return Err(error(
+                    &format!("{method}: {tx_hash:?} acknowledged as"),
+                    other,
+                ));
+            }
+        }
+        self.methods.insert(tx_hash, method.to_owned());
+        Ok(tx_hash)
     }
 
     /// Await a receipt and require that the call returned.
     pub async fn wait(&self, tx: TxHash) -> Result<TransactionReceipt> {
-        let receipt = self.network.await_receipt(tx).await?;
+        let method = self.methods.get(&tx).map_or("?", |m| m.as_str());
+        let config = ReceiptPollConfig {
+            timeout: std::time::Duration::from_secs(120),
+            ..Default::default()
+        };
+        let receipt = poll_receipt(
+            &self.client,
+            self.network_hash,
+            tx,
+            None,
+            config,
+            std::future::pending(),
+        )
+        .await
+        .map_err(|e| error(&format!("{method}: waiting for {tx:?}"), e))?;
         match &receipt.execution {
             ReceiptExecution::Return { .. } => Ok(receipt),
-            other => {
-                let method = self.methods.get(&tx).map_or("?", |m| m.as_str());
-                Err(error("execution", format!("{method} in {tx:?}: {other:?}")))
-            }
+            other => Err(error(&format!("{method} in {tx:?}"), other)),
         }
     }
 
@@ -172,6 +236,42 @@ impl Account {
             decode_default_wallet_call_return(&return_data.0).map_err(|e| error("return", e))?;
         let value = xdrs::cxs::decode(&returned).map_err(|e| error("return", e))?;
         Ok((value, receipt))
+    }
+
+    /// Simulate a read-only call (no transaction) and decode its return value.
+    pub async fn view<A: WriteXDR + ?Sized, R: for<'r> ReadXDR<'r>>(
+        &self,
+        target: ContractAddress,
+        method: &str,
+        args: &A,
+    ) -> Result<R> {
+        let calldata = xdrs::cxs::encode(args).map_err(|e| error("calldata", e))?;
+        let result = self
+            .client
+            .simulate_invocation(SimulateInvocationRequest {
+                assumed_auth: None,
+                min_state_block_height: None,
+                address: Base58(target),
+                entrypoint: HexBytes(
+                    entrypoint_id(INTERFACE.0, INTERFACE.1, method)
+                        .into_inner()
+                        .to_vec(),
+                ),
+                calldata: HexBytes(calldata),
+                caller: None,
+                gas_limit: None,
+            })
+            .await
+            .map_err(|e| error(method, e))?;
+        let DecodedResponse::Known(result) = result else {
+            return Err(Error(format!("{method}: unsupported response")));
+        };
+        match result.output {
+            InvocationOutput::Return { return_data } => {
+                xdrs::cxs::decode(&return_data.0).map_err(|e| error("return", e))
+            }
+            other => Err(error(method, other)),
+        }
     }
 }
 
@@ -257,9 +357,11 @@ impl Fhe {
     }
 
     /// Read a ciphertext through a simulated view call (no transaction).
-    pub async fn get_ciphertext(&self, ctx: &AgentContext, id: u64) -> Result<Lwe> {
-        let contract = Contract::new(self.address, INTERFACE.0, INTERFACE.1);
-        let bytes: Vec<u8> = contract.view(ctx, "get_ciphertext", &id, None).await?;
+    pub async fn get_ciphertext(&self, id: u64) -> Result<Lwe> {
+        let bytes: Vec<u8> = self
+            .account
+            .view(self.address, "get_ciphertext", &id)
+            .await?;
         Lwe::from_bytes(&bytes[8..]).ok_or_else(|| error("ciphertext", "malformed"))
     }
 
@@ -267,14 +369,13 @@ impl Fhe {
     /// deep. Returns the ids of the sum and carry-out, and each gate's report.
     pub async fn full_adder(
         &mut self,
-        ctx: &AgentContext,
         a: u64,
         b: u64,
         c: u64,
     ) -> Result<(u64, u64, Vec<(Gate, GateReport)>)> {
         let mut reports = Vec::new();
         let mut run = async |fhe: &mut Fhe, g: Gate, x: u64, y: u64| -> Result<u64> {
-            let report = fhe.gate(ctx, g, x, y).await?;
+            let report = fhe.gate(g, x, y).await?;
             let id = report.output_id;
             reports.push((g, report));
             Ok(id)
@@ -288,13 +389,7 @@ impl Fhe {
     }
 
     /// Evaluate `gate` on ciphertexts `x` and `y`: start the job and crank it to the end.
-    pub async fn gate(
-        &mut self,
-        ctx: &AgentContext,
-        gate: Gate,
-        x: u64,
-        y: u64,
-    ) -> Result<GateReport> {
+    pub async fn gate(&mut self, gate: Gate, x: u64, y: u64) -> Result<GateReport> {
         let mut transactions = Vec::new();
         let (job, receipt): (u64, _) = self
             .account
@@ -308,7 +403,7 @@ impl Fhe {
                 .await?;
             transactions.push((receipt.transaction_hash, receipt.gas_used));
             if state.stage == DONE {
-                let output = self.get_ciphertext(ctx, state.output).await?;
+                let output = self.get_ciphertext(state.output).await?;
                 return Ok(GateReport {
                     output,
                     output_id: state.output,

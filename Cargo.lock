@@ -919,9 +919,12 @@ version = "0.1.0"
 dependencies = [
  "fhe-core",
  "sha2",
+ "thruput-client",
  "thruput-json-rpc-client",
+ "thruput-json-rpc-types",
  "thruput-signing",
- "thruput-testkit",
+ "thruput-xdr",
+ "thruput-xdrs",
  "tokio",
 ]
 

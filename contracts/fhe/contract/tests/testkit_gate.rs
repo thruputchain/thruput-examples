@@ -13,12 +13,19 @@ use fhe_client::{Rng, SecretKey};
 use fhe_core::Gate;
 use fhe_core::params::*;
 use thruput_testkit::xdr::types::ContractAddress;
-use thruput_testkit::{Agent, DeployOptions, NetworkConfig, Scenario};
+use thruput_testkit::{Agent, DeployOptions, NetworkConfig, Scenario, TestkitError};
 
 type ERC20Remote = thruput_erc20_if::ERC20Remote<thruput_testkit::Caller>;
 
 /// 1 native token in base units.
 const TOKEN: u128 = 10_000_000;
+
+fn fhe_error(e: fhe_client::node::Error) -> TestkitError {
+    TestkitError::Manifest {
+        field: "fhe",
+        detail: e.0,
+    }
+}
 
 fn env(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("set {name}; see contracts/fhe/live.sh"))
@@ -45,7 +52,9 @@ async fn gates_on_a_node() {
         let deployed = ctx
             .deploy_artifact("fhe", DeployOptions::funded(150 * TOKEN))
             .await?;
-        let account = Account::new(ctx.network().clone(), [0x5e; 32]).await?;
+        let account = Account::connect(&env("THRUPUT_RPC_URL"), None, [0x5e; 32])
+            .await
+            .map_err(fhe_error)?;
         let mut native = [0u8; 32];
         native[31] = 1;
         let token = ERC20Remote::new(ctx.caller().clone(), &ContractAddress::from(native));
@@ -63,7 +72,7 @@ async fn gates_on_a_node() {
         let ek = sk.eval_key(&mut rng);
         println!("keygen: {:.1} s", started.elapsed().as_secs_f64());
 
-        let keyset = fhe.create_keyset().await?;
+        let keyset = fhe.create_keyset().await.map_err(fhe_error)?;
         let started = Instant::now();
         let mut upload_gas = (0u64, 0u64);
         fhe.upload_keyset(keyset, &ek, 32, |done, total, receipt| {
@@ -73,7 +82,8 @@ async fn gates_on_a_node() {
                 println!("uploaded {done}/{total}");
             }
         })
-        .await?;
+        .await
+        .map_err(fhe_error)?;
         let uploads = BSK_POLYS.div_ceil(fhe_client::node::POLYS_PER_UPLOAD)
             + KS_GROUPS.div_ceil(fhe_client::node::GROUPS_PER_UPLOAD);
         println!(
@@ -85,10 +95,16 @@ async fn gates_on_a_node() {
 
         let mut enc = Rng::from_os();
         for (x, y) in [(true, true), (false, true)] {
-            let cx = fhe.put_ciphertext(keyset, &sk.encrypt(x, &mut enc)).await?;
-            let cy = fhe.put_ciphertext(keyset, &sk.encrypt(y, &mut enc)).await?;
+            let cx = fhe
+                .put_ciphertext(keyset, &sk.encrypt(x, &mut enc))
+                .await
+                .map_err(fhe_error)?;
+            let cy = fhe
+                .put_ciphertext(keyset, &sk.encrypt(y, &mut enc))
+                .await
+                .map_err(fhe_error)?;
             let started = Instant::now();
-            let report = fhe.gate(&ctx, Gate::Nand, cx, cy).await?;
+            let report = fhe.gate(Gate::Nand, cx, cy).await.map_err(fhe_error)?;
             let gas: u64 = report.transactions.iter().map(|t| t.1).sum();
             println!(
                 "NAND({x}, {y}) = {} in {} transactions, {gas} gas, {:.1} s: {:?}",
@@ -103,13 +119,13 @@ async fn gates_on_a_node() {
         // A full adder: five bootstraps, three deep, some on bootstrapped inputs.
         for (a, b, c) in [(true, true, true), (true, false, true)] {
             let [ia, ib, ic] = [a, b, c].map(|v| sk.encrypt(v, &mut enc));
-            let ia = fhe.put_ciphertext(keyset, &ia).await?;
-            let ib = fhe.put_ciphertext(keyset, &ib).await?;
-            let ic = fhe.put_ciphertext(keyset, &ic).await?;
+            let ia = fhe.put_ciphertext(keyset, &ia).await.map_err(fhe_error)?;
+            let ib = fhe.put_ciphertext(keyset, &ib).await.map_err(fhe_error)?;
+            let ic = fhe.put_ciphertext(keyset, &ic).await.map_err(fhe_error)?;
             let started = Instant::now();
-            let (sum, carry, reports) = fhe.full_adder(&ctx, ia, ib, ic).await?;
-            let sum = sk.decrypt(&fhe.get_ciphertext(&ctx, sum).await?);
-            let carry = sk.decrypt(&fhe.get_ciphertext(&ctx, carry).await?);
+            let (sum, carry, reports) = fhe.full_adder(ia, ib, ic).await.map_err(fhe_error)?;
+            let sum = sk.decrypt(&fhe.get_ciphertext(sum).await.map_err(fhe_error)?);
+            let carry = sk.decrypt(&fhe.get_ciphertext(carry).await.map_err(fhe_error)?);
             let txs: usize = reports.iter().map(|r| r.1.transactions.len()).sum();
             println!(
                 "full adder {} + {} + {} = carry {}, sum {}: {txs} transactions, {:.1} s",
@@ -127,7 +143,8 @@ async fn gates_on_a_node() {
         // Gas per blind-rotation step: one crank of a fresh job, and how far it got.
         let cx = fhe
             .put_ciphertext(keyset, &sk.encrypt(true, &mut enc))
-            .await?;
+            .await
+            .map_err(fhe_error)?;
         let (job, _): (u64, _) = fhe
             .account
             .call(
@@ -136,11 +153,13 @@ async fn gates_on_a_node() {
                 &(Gate::And as u32, cx, cx),
                 20_000_000,
             )
-            .await?;
+            .await
+            .map_err(fhe_error)?;
         let (state, receipt): (Job, _) = fhe
             .account
             .call(fhe.address, "crank", &job, CRANK_GAS)
-            .await?;
+            .await
+            .map_err(fhe_error)?;
         println!(
             "one crank: {} steps for {} gas ({} per step)",
             state.next,

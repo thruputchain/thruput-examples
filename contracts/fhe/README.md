@@ -20,8 +20,8 @@ Crates, in reading order:
   exists once.
 - [`client`](client/src/lib.rs) (`fhe-client`): key generation, encryption, decryption, the
   evaluation key in memory (which makes a native reference evaluator out of the contract's step
-  code), and, with the `node` feature, a driver that sends the contract's calls
-  ([`node.rs`](client/src/node.rs)) and the `fhe-demo` program
+  code), and, with the `node` feature, a driver that signs and sends the contract's calls over
+  JSON-RPC ([`node.rs`](client/src/node.rs)) and the `fhe-demo` program
   ([`fhe-demo.rs`](client/src/bin/fhe-demo.rs)).
 - [`contract`](contract/src/contract.rs) (`fhe`): keysets, ciphertexts, and gate jobs that span
   transactions.
@@ -167,14 +167,15 @@ one crank: 319 steps for 996207299 gas (3122906 per step)
 
 ### The demo on any network
 
-`fhe-demo` runs the same calls against a deployed contract. It signs with a key you export from
-the CLI and never prints it:
+`fhe-demo` runs the same calls against a deployed contract, over JSON-RPC alone. It signs with
+a key you export from the CLI and never prints it. Set `THRUPUT_NETWORK_HASH` as well to refuse
+any other network:
 
 ```sh
 thruput build -p fhe --stack-size 16K
 thruput deploy --artifact target/thruput/fhe.rv32a --fund 100 -y   # the contract pays deposits
 thruput keys export NAME -y > signer.key                            # a funded key; keep it out of git
-export THRUPUT_RPC_URL=... THRUPUT_RUNTIME_MANIFEST=... FHE_CONTRACT=<address> FHE_SIGNER=signer.key
+export THRUPUT_RPC_URL=... FHE_CONTRACT=<address> FHE_SIGNER=signer.key
 cargo run -p fhe-client --features node --bin fhe-demo -- keyset         # prints the keyset id
 cargo run -p fhe-client --features node --bin fhe-demo -- nand 0 1 1
 cargo run -p fhe-client --features node --bin fhe-demo -- adder 0 1 1 0

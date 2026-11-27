@@ -18,13 +18,24 @@ doctest = false
 fhe-core = { path = "../core" }
 sha2 = { workspace = true }
 # The node driver (`node` module): signing and submitting the contract's calls.
-thruput-testkit = { workspace = true, optional = true }
 thruput-signing = { workspace = true, optional = true }
+thruput-client = { workspace = true, optional = true }
 thruput-json-rpc-client = { workspace = true, optional = true }
+thruput-json-rpc-types = { workspace = true, optional = true }
+thruput-xdr = { workspace = true, optional = true }
+xdrs = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 [features]
-node = ["dep:thruput-testkit", "dep:thruput-signing", "dep:thruput-json-rpc-client", "dep:tokio"]
+node = [
+    "dep:thruput-signing",
+    "dep:thruput-client",
+    "dep:thruput-json-rpc-client",
+    "dep:thruput-json-rpc-types",
+    "dep:thruput-xdr",
+    "dep:xdrs",
+    "dep:tokio",
+]
 
 [[bin]]
 name = "fhe-demo"
