@@ -1,0 +1,31 @@
+[package]
+name = "mutual-credit"
+version = "0.1.0"
+description = "Example mutual-credit network: payments ripple through credit lines, whose limits the runtime enforces across a block's concurrent payments"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "mutual_credit"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+thruput-erc20-if = { workspace = true }
+
+[dev-dependencies]
+mutual-credit = { path = ".", features = ["dev"] }

@@ -36,6 +36,7 @@ These combine several concepts. Read a basic example first.
 | [ERC20](erc20/README.md) | Token balances, allowances, metadata, and permits |
 | [Voting](voting/README.md) | Admin permissions, a poll lifecycle, and mergeable vote totals |
 | [Airdrop](airdrop/README.md) | Atomic token claims with optional address eligibility |
+| [Mutual credit](mutual-credit/README.md) | Payments that ripple through members' credit lines, whose limits the runtime enforces across a block |
 
 The [Voting](../apps/voting/README.md) and [Airdrop](../apps/airdrop/README.md)
 apps run on these contracts.
