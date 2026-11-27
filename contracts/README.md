@@ -53,6 +53,7 @@ README gives its crates in reading order.
 | [Stellar account](stellar-account/README.md) | Weighted Ed25519 and ML-DSA-65 signers and thresholds | |
 | [Waitlist](waitlist/README.md) | A fee steered by a backlog, shared by concurrent callers | |
 | [Speedex](speedex/README.md) | Multi-asset batch exchange and clearing (research) | Benchmarks |
+| [FHE](fhe/README.md) | Compute on encrypted bits: bootstrapped gates (TFHE/FHEW) spread over transactions (research) | |
 
 Swap and Speedex include benchmarks. They are in each project's `bench/` folder,
 and the project README tells how to run them and read the results.

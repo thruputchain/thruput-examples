@@ -25,6 +25,7 @@ members = [
     "contracts/speedex",
     "contracts/voting",
     "contracts/erc20/integration-test",
+    "contracts/fhe/*",
     "contracts/permit/*",
     "contracts/stellar-account/*",
     "contracts/swap/*",
@@ -59,6 +60,7 @@ thruput-signed-op = { version = "=0.1.79" }
 
 # from thruput-tools:
 thruput-json-rpc-client = { version = "=0.48.0" }
+thruput-client = { version = "=0.48.0" }
 thruput-json-rpc-types = { version = "=0.48.0" }
 thruput-cli = { package = "thruput", version = "=0.48.0" }
 thruput-signing = { version = "=0.48.0" }
@@ -87,3 +89,10 @@ trim-paths = "all" # unstable
 # and well under it optimized for size.
 [profile.release.package.speedex]
 opt-level = "s"
+
+# The FHE example's tests evaluate hundreds of bootstrapped gates natively; unoptimized, each
+# takes seconds.
+[profile.dev.package.fhe-core]
+opt-level = 3
+[profile.dev.package.fhe-client]
+opt-level = 3

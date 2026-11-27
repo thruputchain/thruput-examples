@@ -901,6 +901,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "fhe"
+version = "0.2.0"
+dependencies = [
+ "fhe",
+ "fhe-client",
+ "fhe-core",
+ "thruput-erc20-if",
+ "thruput-sdk",
+ "thruput-testkit",
+ "tokio",
+]
+
+[[package]]
+name = "fhe-client"
+version = "0.1.0"
+dependencies = [
+ "fhe-core",
+ "sha2",
+ "thruput-client",
+ "thruput-json-rpc-client",
+ "thruput-json-rpc-types",
+ "thruput-signing",
+ "thruput-xdr",
+ "thruput-xdrs",
+ "tokio",
+]
+
+[[package]]
+name = "fhe-core"
+version = "0.1.0"
+
+[[package]]
 name = "fiat-crypto"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

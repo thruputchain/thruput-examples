@@ -1,0 +1,42 @@
+[package]
+name = "fhe-client"
+description = "Key generation, encryption and decryption for the FHE contract, and a native reference evaluator"
+version = "0.1.0"
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+fhe-core = { path = "../core" }
+sha2 = { workspace = true }
+# The node driver (`node` module): signing and submitting the contract's calls.
+thruput-signing = { workspace = true, optional = true }
+thruput-client = { workspace = true, optional = true }
+thruput-json-rpc-client = { workspace = true, optional = true }
+thruput-json-rpc-types = { workspace = true, optional = true }
+thruput-xdr = { workspace = true, optional = true }
+xdrs = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+node = [
+    "dep:thruput-signing",
+    "dep:thruput-client",
+    "dep:thruput-json-rpc-client",
+    "dep:thruput-json-rpc-types",
+    "dep:thruput-xdr",
+    "dep:xdrs",
+    "dep:tokio",
+]
+
+[[bin]]
+name = "fhe-demo"
+required-features = ["node"]

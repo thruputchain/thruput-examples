@@ -25,13 +25,19 @@ for pkg in ${contract_packages} ; do
         cargo_args+=(-F metadata)
     fi
 
+    # The FHE contract needs 28 KiB of heap for its evaluation buffers, so it trades stack for it.
+    build_args=""
+    if [[ "$pkg" = "fhe" ]]; then
+        build_args="--stack-size 16K"
+    fi
+
     # bash 3.2 (macOS) errors on "${empty_array[@]}" under `set -u`.
     extra=""
     if [[ "${#cargo_args[@]}" -gt 0 ]]; then
         extra="-- ${cargo_args[*]}"
     fi
 
-    thruput_build -p "$pkg" $extra || {
+    thruput_build -p "$pkg" $build_args $extra || {
         printf "Build failed for contract %s\n" "$pkg"
         exit 1
     }

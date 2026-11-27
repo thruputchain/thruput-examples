@@ -26,6 +26,8 @@ cargo test --all
 for p in erc20 counter speedex; do
     thruput test -p "$p"
 done
+# Built with its own stack size by build-guest.sh, which `thruput test` would undo.
+cargo test -p fhe --test test_rv32 -- --ignored
 
 # Run tests for contracts implementing the `guest_test` feature
 for p in swap-driver swap-router swap-factory swap-gsr-driver swap-clvr-driver; do

@@ -178,6 +178,8 @@ jobs:
           for p in erc20 counter speedex; do
               thruput test -p "$p"
           done
+          # Built with its own stack size by build-guest.sh, which `thruput test` would undo.
+          cargo test -p fhe --test test_rv32 --locked -- --ignored
 
       - name: Run `guest_test` tests
         run: |
