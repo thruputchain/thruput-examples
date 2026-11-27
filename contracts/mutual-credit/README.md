@@ -33,7 +33,7 @@ From the repo root, without a node or npm:
 cargo test -p mutual-credit --locked --test test
 ```
 
-Expected: **16 tests pass**:
+Expected: **17 tests pass**:
 
 - A payment ripples through a friend, whose position does not move. Paying
   down a debt needs no credit.
@@ -46,7 +46,8 @@ Expected: **16 tests pass**:
   either order. A limit cannot be cut below what is owed. A raise counts from
   the next block.
 - A cycle of debts clears with a payment to yourself.
-- A payment splits over routes, or none of it moves.
+- A payment splits over routes, or none of it moves. Routes that share a line
+  take from its one room, up to what it has.
 - A pair opens once, changes once a block, and closes once. Its bond goes back
   to whoever opened it.
 - Bad limits and routes are refused. The largest payment fits, and the network

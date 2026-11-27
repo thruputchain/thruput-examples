@@ -541,6 +541,67 @@ fn a_payment_splits_over_routes_or_not_at_all() {
     assert_eq!(n.line("bob", "alice"), line(50, 40));
 }
 
+// Alice's two routes to Dave both start through Bob, so both take from Bob's one room for her. The
+// contract checks each take against what the earlier routes left, so together they can use the
+// room exactly, but not more. Past it, the payment is refused whole: no line moves.
+#[test]
+fn routes_that_share_a_line_take_from_one_room() {
+    let n = Network::new();
+    n.trust("bob", "alice", 50);
+    for via in ["carol", "erin"] {
+        n.trust(via, "bob", 100);
+        n.trust("dave", via, 100);
+    }
+    n.env.advance_block();
+    let lines = || {
+        [
+            n.line("bob", "alice"),
+            n.line("carol", "bob"),
+            n.line("erin", "bob"),
+            n.line("dave", "carol"),
+            n.line("dave", "erin"),
+        ]
+    };
+
+    let dave = addr("dave");
+    let too_much = routes(vec![
+        route(&["bob", "carol"], 30),
+        route(&["bob", "erin"], 30),
+    ]);
+    assert_eq!(
+        n.refused("alice", |c| c.try_pay(dave, too_much).err()),
+        CreditError::NotEnoughCredit
+    );
+    n.env.advance_block();
+    assert_eq!(
+        lines(),
+        [
+            line(50, 0),
+            line(100, 0),
+            line(100, 0),
+            line(100, 0),
+            line(100, 0)
+        ]
+    );
+
+    let exact = routes(vec![
+        route(&["bob", "carol"], 20),
+        route(&["bob", "erin"], 30),
+    ]);
+    assert_eq!(n.call("alice", |c| c.pay(dave, exact)), 50);
+    n.env.advance_block();
+    assert_eq!(
+        lines(),
+        [
+            line(50, 50),
+            line(100, 20),
+            line(100, 30),
+            line(100, 20),
+            line(100, 30)
+        ]
+    );
+}
+
 // Alice and Bob each extend the other credit for the first time, in one block. Both find no pair,
 // and both would open it, but only one can: the other is left out, and takes no bond. Sent again,
 // it is a limit on the pair that is now open. Two limit changes on one pair in one block conflict
