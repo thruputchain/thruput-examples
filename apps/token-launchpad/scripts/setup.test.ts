@@ -15,35 +15,33 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createThruputClient,
-  createWalletClient,
   fixedBytes,
   fromHex0x,
   hashContract,
-  ThruputError,
   toBase58,
   toHex0x,
-  type TransactionReceipt,
 } from "@thruputchain/client";
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
-  contractAddress,
   gasAmount,
   NATIVE_TOKEN_ADDRESS,
 } from "@thruputchain/protocol";
 import { StandardTokenFactory } from "../src/contracts/generated/standard-token-factory";
+import { loadKeyFile, withScenario } from "@thruputchain/testkit";
 import { setup as main, publishArtifact, validateTokenFunding } from "./index";
-import { createPersona, createRun, record, type Client } from "./run";
 const setupDevnet = (env = process.env) => main(env, "devnet");
 
 const mocks = vi.hoisted(() => ({
   getVersionInfo: vi.fn(),
   getChainConfig: vi.fn(),
-  requestAirdrop: vi.fn(),
+  fund: vi.fn(),
   getBalance: vi.fn(),
-  deployContractAndWait: vi.fn(),
-  executeAndWait: vi.fn(),
-  deriveContractAddress: vi.fn(),
+  call: vi.fn(),
+  deploy: vi.fn(),
+  view: vi.fn(),
+  steps: [] as string[],
+  stepMetadata: [] as unknown[],
   rename: vi.fn(),
   link: vi.fn(),
 }));
@@ -52,18 +50,6 @@ vi.mock("node:fs/promises", async (original) => ({
   rename: mocks.rename,
   link: mocks.link,
 }));
-vi.mock("@thruputchain/client/wallet", async (original) => {
-  const sdk = await original<typeof import("@thruputchain/client/wallet")>();
-  return {
-    ...sdk,
-    prepareContractDeployment: (
-      input: Parameters<typeof sdk.prepareContractDeployment>[0],
-    ) => ({
-      ...sdk.prepareContractDeployment(input),
-      address: mocks.deriveContractAddress(),
-    }),
-  };
-});
 vi.mock("@thruputchain/client", async (original) => ({
   ...(await original<typeof import("@thruputchain/client")>()),
   createThruputClient: vi.fn(async ({ cluster }) => ({
@@ -71,10 +57,44 @@ vi.mock("@thruputchain/client", async (original) => ({
     getVersionInfo: mocks.getVersionInfo,
     getChainConfig: mocks.getChainConfig,
   })),
-  createWalletClient: vi.fn(() => mocks),
+}));
+// Unit tests check this app's steps and publication. Testkit's own tests cover
+// transaction recording, and setup.integration.ts runs the real flow on a node.
+vi.mock("@thruputchain/testkit", async (original) => ({
+  ...(await original<typeof import("@thruputchain/testkit")>()),
+  withScenario: vi.fn(async (options, run) => {
+    const [account] = Object.values(options.accounts);
+    const actor = {
+      account,
+      wallet: { getBalance: mocks.getBalance },
+      fund: mocks.fund,
+      call: mocks.call,
+      deploy: mocks.deploy,
+    };
+    return run({
+      // Like testkit, accept only the configured actor.
+      actor: (name: string) => {
+        if (!(name in options.accounts))
+          throw new Error(`Unknown scenario actor: ${name}`);
+        return actor;
+      },
+      view: mocks.view,
+      run: {
+        report: () => ({ attempts: [] }),
+        step: async (
+          name: string,
+          action: () => Promise<unknown>,
+          stepOptions?: { metadata?: unknown },
+        ) => {
+          mocks.steps.push(name);
+          mocks.stepMetadata.push(stepOptions?.metadata);
+          return action();
+        },
+      },
+    });
+  }),
 }));
 
-const factory = contractAddress(new Uint8Array(32).fill(3));
 const gas = gasAmount(10_000_000n);
 const contract = (name: string) => ({
   contract_type: ContractType.kRv32 as const,
@@ -105,7 +125,6 @@ let root: string;
 let output: string;
 let assetPath: string;
 let oldAssetPath: string;
-let phases: string[];
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -153,47 +172,19 @@ beforeEach(async () => {
   );
   vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", join(root, "runtime.json"));
   vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
-  phases = [];
+  mocks.steps.length = 0;
+  mocks.stepMetadata.length = 0;
   mocks.getVersionInfo.mockResolvedValue({ wireFormat: "14.0.0" });
   mocks.getChainConfig.mockResolvedValue({
     execution: { storageCosts: costs },
   });
-  mocks.deriveContractAddress.mockReturnValue(factory);
-  mocks.requestAirdrop.mockImplementation(async () => {
-    phases.push("airdrop");
-    return {
-      rawAmount: 1_000_000_000n,
-      transactionHash: new Uint8Array(32),
-      blockHeight: 1n,
-    };
-  });
+  mocks.fund.mockResolvedValue({ rawAmount: 1_000_000_000n });
   mocks.getBalance.mockResolvedValue({ rawBalance: 1_000_000_000n });
-  mocks.deployContractAndWait.mockImplementation(async (deployment) => {
-    phases.push("deploy");
-    return {
-      transactionHash: new Uint8Array(32),
-      address: deployment.address,
-      receipt: {
-        transactionHash: new Uint8Array(32),
-        blockHeight: 3n,
-        execution: { result: "return" },
-      },
-    };
-  });
-  mocks.executeAndWait.mockImplementation(async () => {
-    phases.push("execute");
-    return {
-      transactionHash: new Uint8Array(32),
-      receipt: {
-        transactionHash: new Uint8Array(32),
-        blockHeight: 2n,
-        execution: { result: "return" },
-      },
-    };
-  });
-  vi.spyOn(StandardTokenFactory.v0_1.config, "view").mockResolvedValue({
-    value: config,
-  } as never);
+  mocks.call.mockResolvedValue({});
+  mocks.deploy.mockImplementation(async (deployment) => ({
+    address: deployment.address,
+  }));
+  mocks.view.mockResolvedValue({ value: config });
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -209,9 +200,9 @@ describe("infrastructure-only launchpad provisioning", () => {
     vi.stubEnv("THRUPUT_RPC_URL", undefined);
     vi.stubEnv("THRUPUT_NETWORK_ID", toBase58(new Uint8Array(32).fill(0x11)));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", undefined);
-    vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
+    mocks.view.mockResolvedValueOnce({
       value: { ...config, required_token_funding: 10_000_000n },
-    } as never);
+    });
     await setupDevnet();
     expect(createThruputClient).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -242,7 +233,7 @@ describe("infrastructure-only launchpad provisioning", () => {
         THRUPUT_RPC_URL: "https://rpc.example.com",
       }),
     ).rejects.toThrow(/balanceCost/);
-    expect(mocks.deployContractAndWait).not.toHaveBeenCalled();
+    expect(mocks.deploy).not.toHaveBeenCalled();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
   });
 
@@ -320,7 +311,7 @@ describe("infrastructure-only launchpad provisioning", () => {
   it("rejects a manifest that disagrees with the network pin", async () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", toBase58(new Uint8Array(32).fill(1)));
     await expect(main()).rejects.toThrow(/disagree/);
-    expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+    expect(mocks.fund).not.toHaveBeenCalled();
   });
 
   it("calculates storage with current costs instead of pinning unrelated fields", () => {
@@ -338,13 +329,13 @@ describe("infrastructure-only launchpad provisioning", () => {
   it("stops before funding if execution costs are unavailable", async () => {
     mocks.getChainConfig.mockResolvedValueOnce({});
     await expect(main()).rejects.toThrow(/storage costs/);
-    expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+    expect(mocks.fund).not.toHaveBeenCalled();
   });
 
   it("stops before deployment when faucet funding is insufficient", async () => {
     mocks.getBalance.mockResolvedValueOnce({ rawBalance: 1n });
     await expect(main()).rejects.toThrow(/reserve/);
-    expect(mocks.deployContractAndWait).not.toHaveBeenCalled();
+    expect(mocks.deploy).not.toHaveBeenCalled();
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
   });
 
@@ -354,36 +345,67 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(() => validateTokenFunding(costs, 36_909)).toThrow(/funding budget/);
     await writeFile(join(root, "standard_token.rv32a"), Buffer.alloc(36_909));
     await expect(main()).rejects.toThrow(/funding budget/);
-    expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+    expect(mocks.fund).not.toHaveBeenCalled();
   });
   it("deploys only a factory, funds before initialization, and writes public infrastructure only", async () => {
     await main();
-    expect(phases).toEqual(["airdrop", "execute", "deploy"]);
-    expect(mocks.requestAirdrop).toHaveBeenCalledWith({ timeoutMs: 60_000 });
-    const account = vi.mocked(createWalletClient).mock.calls[0]![0].account;
+    expect(mocks.steps).toEqual([
+      "fund-deployer",
+      "fund-native-reserve",
+      "deploy-factory",
+      "verify-factory",
+    ]);
+    expect(mocks.fund).toHaveBeenCalledWith({ timeoutMs: 60_000 });
+    const scenario = vi.mocked(withScenario).mock.calls[0]![0];
+    // The scenario is pinned to the discovered network.
+    const discovered =
+      await vi.mocked(createThruputClient).mock.results[0]!.value;
+    expect(scenario.network.cluster.networkHash).toEqual(
+      discovered.network.networkHash,
+    );
+    const account = scenario.accounts["Launchpad Deployer"]!;
     expect(account.kind).toBe("pubkey");
-    const [deployment, deployOptions, options] =
-      mocks.deployContractAndWait.mock.calls[0]!;
-    expect(deployment.contract).toEqual(contract("standard_token_factory"));
-    expect(deployment.deployer).toEqual(account.address);
-    expect(deployOptions).toEqual({
-      gasLimit: gas,
-      amount: 10_000_000n,
-      initializer: StandardTokenFactory.v0_1.initialize.invocation(
-        factory,
-        gas,
-        { config },
-      ),
-    });
-    expect(options).toEqual({ timeoutMs: 60_000 });
+    // Each run gets a new directory with a private key and the testkit report.
+    const runs = join(root, ".local/launchpad-setup");
+    const [name] = await readdir(runs);
+    const directory = join(runs, name!);
+    expect(scenario.runDirectory).toBe(join(directory, "transactions"));
+    expect((await loadKeyFile(join(directory, "key.json"))).address).toBe(
+      toBase58(account.address),
+    );
+    expect((await stat(join(directory, "key.json"))).mode & 0o777).toBe(0o600);
+
+    const [calls, callOptions] = mocks.call.mock.calls[0]!;
     expect(
-      mocks.executeAndWait.mock.calls.map(([request]) => request.invocation),
+      calls.map((call: { invocation: unknown }) => call.invocation),
     ).toEqual([
       ERC20.v0_1.transfer.invocation(NATIVE_TOKEN_ADDRESS, gas, {
         receiver: NATIVE_TOKEN_ADDRESS,
         amount: 10_000_000n,
       }),
     ]);
+    expect(callOptions).toEqual({ wait: { timeoutMs: 60_000 } });
+    const [deployment, deployOptions] = mocks.deploy.mock.calls[0]!;
+    // The deployment step records the predicted factory address.
+    expect(mocks.stepMetadata[2]).toEqual({
+      address: toBase58(deployment.address),
+    });
+    expect(deployment.contract).toEqual(contract("standard_token_factory"));
+    expect(deployment.deployer).toEqual(account.address);
+    expect(deployOptions.gasLimit).toBe(gas);
+    expect(deployOptions.amount).toBe(10_000_000n);
+    expect(deployOptions.wait).toEqual({ timeoutMs: 60_000 });
+    expect(deployOptions.initializer.invocation).toEqual(
+      StandardTokenFactory.v0_1.initialize.invocation(deployment.address, gas, {
+        config,
+      }),
+    );
+    expect(mocks.view.mock.calls[0]![0].request).toEqual(
+      StandardTokenFactory.v0_1.config.viewRequest({
+        address: deployment.address,
+      }).request,
+    );
+
     const env = await readFile(output, "utf8");
     expect(
       env
@@ -399,24 +421,15 @@ describe("infrastructure-only launchpad provisioning", () => {
       "VITE_STANDARD_TOKEN_HASH",
     ]);
     expect(env).toContain("VITE_NATIVE_BALANCE_ITEM_COST=1234\n");
+    expect(env).toContain(
+      `VITE_STANDARD_TOKEN_FACTORY_ADDRESS=${toBase58(deployment.address)}\n`,
+    );
     expect(env).not.toMatch(
       /PRIVATE|PERSONA|WALLET|ENTRYPOINT|POOL|alice|bob|carol/i,
     );
     expect(env).not.toContain(toBase58(account.address));
-    const runs = join(root, ".local/launchpad-setup");
-    const [name] = await readdir(runs);
-    const directory = join(runs, name!);
-    const manifest = JSON.parse(
-      await readFile(join(directory, "manifest.json"), "utf8"),
-    );
-    expect(manifest.status).toBe("complete");
-    expect(
-      manifest.transactions.map((tx: { status: string }) => tx.status),
-    ).toEqual(["confirmed", "confirmed", "confirmed"]);
     const key = JSON.parse(await readFile(join(directory, "key.json"), "utf8"));
-    expect(key.address).toBe(toBase58(account.address));
     expect(env).not.toContain(key.seed);
-    expect((await stat(join(directory, "key.json"))).mode & 0o777).toBe(0o600);
     const asset = JSON.parse(await readFile(assetPath, "utf8"));
     expect(asset).toEqual({
       contractType: "rv32",
@@ -435,36 +448,41 @@ describe("infrastructure-only launchpad provisioning", () => {
     expect(
       mocks.rename.mock.calls.some(([, destination]) => destination === output),
     ).toBe(true);
-    expect(StandardTokenFactory.v0_1.config.view).toHaveBeenCalledWith(
-      expect.objectContaining({ minStateBlockHeight: 3n }),
-    );
     expect(mocks.link.mock.calls.map(([, destination]) => destination)).toEqual(
       [assetPath],
     );
   });
 
   it.each([
-    "airdrop",
-    "receipt",
-    "address",
-    "verification",
+    "fund-deployer",
+    "fund-native-reserve",
+    "deploy-factory",
+    "verify-factory",
     "asset publication",
-  ])("preserves existing output when %s fails", async (phase) => {
-    if (phase === "airdrop")
-      mocks.requestAirdrop.mockRejectedValueOnce(new Error("Funding stopped"));
-    if (phase === "receipt")
-      mocks.executeAndWait.mockRejectedValueOnce(new Error("Execution failed"));
-    if (phase === "address")
-      mocks.deployContractAndWait.mockRejectedValueOnce(
+  ] as const)("preserves existing output when %s fails", async (phase) => {
+    if (phase === "fund-deployer")
+      mocks.fund.mockRejectedValueOnce(new Error("Funding stopped"));
+    if (phase === "fund-native-reserve")
+      mocks.call.mockRejectedValueOnce(new Error("Execution failed"));
+    if (phase === "deploy-factory")
+      mocks.deploy.mockRejectedValueOnce(
         new Error("Deployment address mismatch"),
       );
-    if (phase === "verification")
-      vi.mocked(StandardTokenFactory.v0_1.config.view).mockResolvedValueOnce({
+    if (phase === "verify-factory")
+      mocks.view.mockResolvedValueOnce({
         value: { ...config, creation_fee: 1n },
-      } as never);
+      });
     if (phase === "asset publication")
       mocks.link.mockRejectedValueOnce(new Error("Cannot publish asset"));
-    await expect(main()).rejects.toThrow();
+    // Each phase stops setup for its own reason.
+    const reasons = {
+      "fund-deployer": "Funding stopped",
+      "fund-native-reserve": "Execution failed",
+      "deploy-factory": "Deployment address mismatch",
+      "verify-factory": "could not be verified",
+      "asset publication": "Cannot publish asset",
+    };
+    await expect(main()).rejects.toThrow(reasons[phase]);
     expect(await readFile(output, "utf8")).toBe("previous environment\n");
     expect(await readFile(oldAssetPath, "utf8")).toBe("previous artifact\n");
     expect(await readdir(join(root, "public/contract-artifacts"))).toEqual([
@@ -506,7 +524,7 @@ describe("infrastructure-only launchpad provisioning", () => {
     await writeFile(manifest, JSON.stringify(manifestContents()));
     vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
     await main();
-    expect(mocks.deployContractAndWait).toHaveBeenCalledTimes(1);
+    expect(mocks.deploy).toHaveBeenCalledTimes(1);
   });
 
   it("records the manifest network hash exactly", async () => {
@@ -528,7 +546,7 @@ describe("infrastructure-only launchpad provisioning", () => {
       await writeFile(manifest, JSON.stringify(manifestContents(recorded)));
       vi.stubEnv("THRUPUT_RUNTIME_MANIFEST", manifest);
       await expect(main()).rejects.toThrow(/base58/i);
-      expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+      expect(mocks.fund).not.toHaveBeenCalled();
     },
   );
 
@@ -537,114 +555,24 @@ describe("infrastructure-only launchpad provisioning", () => {
       execution: { storageCosts: { ...costs, balanceCost: 1235n } },
     });
     await expect(main()).rejects.toThrow(/balanceCost/);
-    expect(mocks.requestAirdrop).not.toHaveBeenCalled();
+    expect(mocks.fund).not.toHaveBeenCalled();
   });
 
+  it("checks the public folder before any transaction", async () => {
+    // A file where the asset folder should be cannot hold the code asset.
+    const blocked = join(root, "blocked");
+    await writeFile(blocked, "");
+    vi.stubEnv("LAUNCHPAD_APP_PUBLIC_DIR", blocked);
+    await expect(main()).rejects.toMatchObject({ code: "ENOTDIR" });
+    expect(mocks.fund).not.toHaveBeenCalled();
+    expect(mocks.steps).toEqual([]);
+  });
   it("rejects invalid networks and unsupported wire formats before funding", async () => {
     vi.stubEnv("THRUPUT_NETWORK_ID", "invalid");
-    await expect(main()).rejects.toThrow();
+    await expect(main()).rejects.toThrow(/base58/);
     vi.stubEnv("THRUPUT_NETWORK_ID", zeroNetwork);
     mocks.getVersionInfo.mockResolvedValueOnce({ wireFormat: "13.0.0" });
     await expect(main()).rejects.toThrow(/wire format/);
-    expect(mocks.requestAirdrop).not.toHaveBeenCalled();
-  });
-});
-
-it("saves signed evidence before observation and rejects evidence overwrite", async () => {
-  const run = await createRun(root, toBase58(evidence.networkHash));
-  await createPersona({} as Client, run, "Operator");
-  const onSigned = vi.mocked(createWalletClient).mock.calls.at(-1)![0]
-    .onSigned!;
-  await record(run, "Deploy", async () => {
-    await onSigned(evidence);
-    const manifest = JSON.parse(
-      await readFile(join(run.directory, "manifest.json"), "utf8"),
-    );
-    expect(manifest.transactions[0]).toMatchObject({
-      status: "unknown",
-      hash: toBase58(evidence.transactionHash),
-    });
-    const path = join(run.directory, "001.signed.json");
-    const saved = await readFile(path, "utf8");
-    expect(JSON.parse(saved)).toEqual({
-      network: toBase58(evidence.networkHash),
-      hash: toBase58(evidence.transactionHash),
-      signed: toHex0x(evidence.signedTransaction),
-    });
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
-    await expect(onSigned(evidence)).rejects.toThrow();
-    expect(await readFile(path, "utf8")).toBe(saved);
-    return { hash: evidence.transactionHash, blockHeight: 7n };
-  });
-});
-
-const evidence = {
-  transactionHash: new Uint8Array(32).fill(9),
-  networkHash: new Uint8Array(32),
-  signedTransaction: new Uint8Array([1, 2, 3]),
-};
-
-it.each([
-  ["notSubmitted", "notDispatched", "failed"],
-  ["unknown", "submissionFailed", "unknown"],
-  ["unknown", "timeout", "unknown"],
-] as const)(
-  "records outcome %s (%s) as %s without retrying",
-  async (outcome, reason, status) => {
-    const run = await createRun(root, zeroNetwork);
-    const submit = vi.fn(async () => {
-      const manifest = JSON.parse(
-        await readFile(join(run.directory, "manifest.json"), "utf8"),
-      );
-      expect(manifest.transactions).toEqual([
-        { label: "Deploy", status: "unknown" },
-      ]);
-      throw new ThruputError(
-        outcome === "notSubmitted"
-          ? "transactionNotSubmitted"
-          : "transactionOutcomeUnknown",
-        "Stopped",
-        { transaction: { hash: evidence.transactionHash, outcome, reason } },
-      );
-    });
-    await expect(record(run, "Deploy", submit)).rejects.toBeInstanceOf(
-      ThruputError,
-    );
-    expect(submit).toHaveBeenCalledOnce();
-    const manifest = JSON.parse(
-      await readFile(join(run.directory, "manifest.json"), "utf8"),
-    );
-    expect(manifest.transactions[0]).toMatchObject({
-      status,
-      hash: toBase58(evidence.transactionHash),
-    });
-  },
-);
-
-it("records a confirmed execution failure", async () => {
-  const run = await createRun(root, zeroNetwork);
-  const receipt: TransactionReceipt = {
-    transactionHash: evidence.transactionHash,
-    blockHeight: 3n,
-    events: [],
-    gasUsed: 1n,
-    execution: { result: "abort", abortData: new Uint8Array([1]) },
-  };
-  await expect(
-    record(run, "Deploy", async () => {
-      throw new ThruputError("transactionFailed", "Execution failed", {
-        transaction: {
-          hash: evidence.transactionHash,
-          outcome: "failed",
-          reason: "aborted",
-          receipt: receipt,
-          submission: evidence,
-        },
-      });
-    }),
-  ).rejects.toBeInstanceOf(ThruputError);
-  expect(run.manifest.transactions[0]).toMatchObject({
-    status: "failed",
-    hash: toBase58(evidence.transactionHash),
+    expect(mocks.fund).not.toHaveBeenCalled();
   });
 });

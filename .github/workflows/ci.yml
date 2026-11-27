@@ -83,12 +83,13 @@ jobs:
           npx --no-install playwright-core install --with-deps chromium
           CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')"
           echo "CHROMIUM_PATH=$CHROMIUM_PATH" >> "$GITHUB_ENV"
-      - name: Qualify the client examples, counter, Voting setup, seeding, batched transactions, and Launchpad with Swap
+      - name: Qualify the client examples, counter, app setups, seeding, batched transactions, and Launchpad with Swap
         run: |
           npm run test:examples
           npm run test:counter
           npm run test:setup:integration --workspace apps/counter
           npm run test:setup:integration --workspace apps/voting
+          npm run test:setup:integration --workspace apps/token-launchpad
           npm run test:seed
           npm run test:batching
           npm run test:launchpad-swap

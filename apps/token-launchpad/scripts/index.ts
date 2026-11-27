@@ -15,9 +15,7 @@ import {
   toBase58,
   toHex0x,
   type RpcStorageCosts,
-  type ContractDeployment,
 } from "@thruputchain/client";
-import { prepareContractDeployment } from "@thruputchain/client/wallet";
 import { ERC20 } from "@thruputchain/client/contracts";
 import {
   ContractType,
@@ -26,6 +24,12 @@ import {
   networkHash,
   type ContractAddress,
 } from "@thruputchain/protocol";
+import {
+  createKeyFile,
+  createOutputDirectory,
+  loadArtifacts,
+  withScenario,
+} from "@thruputchain/testkit";
 
 import {
   StandardTokenFactory,
@@ -33,15 +37,6 @@ import {
 } from "../src/contracts/generated/standard-token-factory";
 import { PINNED_NATIVE_BALANCE_ITEM_COST } from "../src/thruput/storage-cost";
 import { parseExplorerUrl } from "../src/lib/explorer-url";
-import {
-  createPersona,
-  createRun,
-  record,
-  saveRun,
-  type Client,
-  type Run,
-  type Persona,
-} from "./run";
 
 type FactoryConfig = standard_token_factory_if.v0_1.factory.FactoryConfig;
 
@@ -127,29 +122,33 @@ export async function provisionLaunchpad(options: {
   const explorerUrl = parseExplorerUrl(options.explorerUrl);
   const requiredTokenFunding =
     options.network === "devnet" ? CONTRACT_FUNDING : REQUIRED_TOKEN_FUNDING;
-  const client = await createThruputClient({
-    cluster: defineCluster({
-      name: options.network,
-      rpcUrl,
-      ...(options.networkId === undefined
-        ? {}
-        : {
-            networkHash: networkHash(hashFromBase58(options.networkId)),
-          }),
-      capabilities: ["airdrop"] as const,
-    }),
-    transport: new HttpTransport(rpcUrl, { timeoutMs: 10_000 }),
+  const cluster = defineCluster({
+    name: options.network,
+    rpcUrl,
+    ...(options.networkId === undefined
+      ? {}
+      : { networkHash: networkHash(hashFromBase58(options.networkId)) }),
+    capabilities: ["airdrop"] as const,
   });
+  const transport = new HttpTransport(rpcUrl, { timeoutMs: 10_000 });
+  // Preserve discovery and optional pins. This external client remains usable after setup.
+  const client = await createThruputClient({ cluster, transport });
+  // Pin the scenario to the network the SDK discovered and checked.
+  const expectedNetwork = networkHash(
+    hashFromBase58(toBase58(client.network.networkHash)),
+  );
   const version = await client.getVersionInfo();
   if (!/^14\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version.wireFormat)) {
     throw new Error(
       `Thruput wire format 14.x is required; found ${version.wireFormat}`,
     );
   }
-  const [tokenCode, factoryCode] = await Promise.all([
-    readFile(join(artifactRoot, "standard_token.rv32a")),
-    readFile(join(artifactRoot, "standard_token_factory.rv32a")),
-  ]);
+  // Setup never deploys the token. It needs its raw bytes for the code hash
+  // and the published artifact.
+  const tokenCode = await readFile(join(artifactRoot, "standard_token.rv32a"));
+  const { factory } = await loadArtifacts({
+    factory: join(artifactRoot, "standard_token_factory.rv32a"),
+  });
   const tokenHash = hashContract({
     contract_type: ContractType.kRv32,
     rv32_contract: { data: tokenCode },
@@ -159,50 +158,134 @@ export async function provisionLaunchpad(options: {
   if (!execution)
     throw new Error("Node did not report execution storage costs");
   validateTokenFunding(execution.storageCosts, tokenCode.length);
-  const artifactContents = `${JSON.stringify({ contractType: "rv32", data: toHex0x(tokenCode), hash: toBase58(tokenHash) })}\n`;
 
+  const directory = await createOutputDirectory(
+    join(dirname(environmentPath), ".local", "launchpad-setup"),
+  );
+  const runDirectory = join(directory, "transactions");
+  console.log(`Report: ${join(runDirectory, "report.json")}`);
+  // Save the private key before funding or deployment, so a failed run can be recovered.
+  const deployer = await createKeyFile(join(directory, "key.json"));
+  // Unused contractsToDeploy attachments are not persisted by the node.
+  // The first user token creation must attach standard_token.rv32a; setup
+  // deliberately does not instantiate a token just to register its code.
+  const deployment = factory.prepare(deployer.account.address);
+  const factoryAddress = deployment.address;
+  const expected: FactoryConfig = {
+    token_code_hash: fixedBytes(tokenHash, 32),
+    required_token_funding: requiredTokenFunding,
+    native_token: NATIVE_TOKEN_ADDRESS,
+    creation_fee: 0n,
+    fee_recipient: null,
+  };
+
+  // Check both outputs before any transaction spends funds.
   await mkdir(dirname(environmentPath), { recursive: true });
   await mkdir(dirname(artifactPath), { recursive: true });
   const temporary = `${environmentPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
   const temporaryArtifact = `${artifactPath}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`;
-  const run = await createRun(
-    join(dirname(environmentPath), ".local", "launchpad-setup"),
-    toBase58(client.network.networkHash),
-  );
-  console.log(`Run: ${run.directory}`);
   try {
+    await writeFile(
+      temporaryArtifact,
+      `${JSON.stringify({ contractType: "rv32", data: toHex0x(tokenCode), hash: toBase58(tokenHash) })}\n`,
+      { mode: 0o644, flag: "wx" },
+    );
     await writeFile(temporary, "", { mode: 0o600, flag: "wx" });
-    await writeFile(temporaryArtifact, artifactContents, {
-      mode: 0o644,
-      flag: "wx",
-    });
-    const persona = await createPersona(client, run, "Launchpad Deployer");
-    // Unused contractsToDeploy attachments are not persisted by the node.
-    // The first user token creation must attach standard_token.rv32a; setup
-    // deliberately does not instantiate a token just to register its code.
-    const deployment = prepareContractDeployment({
-      deployer: persona.account.address,
-      contract: factoryCode,
-    });
-    const factoryAddress = deployment.address;
-    run.manifest.factoryAddress = toBase58(factoryAddress);
-    await saveRun(run);
-    const expectedConfig: FactoryConfig = {
-      token_code_hash: fixedBytes(tokenHash, 32),
-      required_token_funding: requiredTokenFunding,
-      native_token: NATIVE_TOKEN_ADDRESS,
-      creation_fee: 0n,
-      fee_recipient: null,
-    };
-    await fundPersona(run, persona);
-    await fundNativeReserve(run, persona);
-    await deployFactory(run, persona, deployment, expectedConfig);
-    await verifyFactory(client, run, deployment, expectedConfig);
+
+    await withScenario(
+      {
+        network: {
+          cluster: { ...cluster, networkHash: expectedNetwork },
+          transport,
+        },
+        accounts: { "Launchpad Deployer": deployer.account },
+        runDirectory,
+      },
+      async (scenario) => {
+        const actor = scenario.actor("Launchpad Deployer");
+        console.log(
+          `Deployer: ${deployer.address}\nPredicted factory: ${toBase58(factoryAddress)}`,
+        );
+        try {
+          await scenario.run.step("fund-deployer", async () => {
+            // The faucet chooses the amount. The report records the request and its hash.
+            await actor.fund({ timeoutMs: wait.timeoutMs });
+            const { rawBalance } = await actor.wallet.getBalance();
+            if (rawBalance < CONTRACT_FUNDING * 3n)
+              throw new Error(
+                "Infrastructure deployer airdrop did not provide the required native-token reserve",
+              );
+          });
+          // The native contract needs storage reserve for future token balance rows.
+          await scenario.run.step("fund-native-reserve", () =>
+            actor.call(
+              [
+                ERC20.v0_1.transfer.call({
+                  address: NATIVE_TOKEN_ADDRESS,
+                  gasLimit: GAS_LIMIT,
+                  args: {
+                    receiver: NATIVE_TOKEN_ADDRESS,
+                    amount: CONTRACT_FUNDING,
+                  },
+                }),
+              ],
+              { wait },
+            ),
+          );
+          await scenario.run.step(
+            "deploy-factory",
+            () =>
+              // Funding, deployment, and initialization succeed or fail together.
+              actor.deploy(deployment, {
+                gasLimit: GAS_LIMIT,
+                amount: CONTRACT_FUNDING,
+                initializer: StandardTokenFactory.v0_1.initialize.call({
+                  address: factoryAddress,
+                  gasLimit: GAS_LIMIT,
+                  args: { config: expected },
+                }),
+                wait,
+              }),
+            { metadata: { address: toBase58(factoryAddress) } },
+          );
+          await scenario.run.step("verify-factory", async () => {
+            // Testkit reads state containing the confirmed deployment.
+            const observed = (
+              await scenario.view(
+                StandardTokenFactory.v0_1.config.viewRequest({
+                  address: factoryAddress,
+                }),
+              )
+            ).value;
+            // Compare with scenario inputs, independently of the deployment receipt.
+            if (
+              !bytesEqual(observed.token_code_hash, expected.token_code_hash) ||
+              observed.required_token_funding !==
+                expected.required_token_funding ||
+              !bytesEqual(observed.native_token, expected.native_token) ||
+              observed.creation_fee !== 0n ||
+              observed.fee_recipient !== null
+            )
+              throw new Error(
+                "The deployed factory configuration could not be verified",
+              );
+          });
+        } finally {
+          for (const attempt of scenario.run.report().attempts) {
+            console.log(
+              `${attempt.step} (${attempt.outcome}): ${attempt.transactionHash ?? "no hash recorded"}`,
+            );
+          }
+        }
+      },
+    );
+
+    // Finish report persistence and scenario cleanup before publishing app files.
     await writeFile(
       temporary,
       renderEnvironment({
         rpcUrl,
-        networkHash: run.manifest.networkHash,
+        networkHash: toBase58(expectedNetwork),
         factoryAddress,
         tokenHash,
       }) +
@@ -214,107 +297,22 @@ export async function provisionLaunchpad(options: {
               "",
             ].join("\n")
           : ""),
+      { mode: 0o600, flush: true },
     );
     // Publish complete code bytes before the environment completion marker.
     await publishArtifact(temporaryArtifact, artifactPath);
     await rename(temporary, environmentPath);
-    run.manifest.status = "complete";
-    await saveRun(run);
-    console.log(
-      `Launchpad ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factoryAddress)}\nToken code: ${toBase58(tokenHash)}\nRequired token funding: ${requiredTokenFunding}`,
-    );
-    console.warn(
-      `No tokens were created. First token creation can attach the code asset at ${artifactPath}.`,
-    );
-    return { client, address: factoryAddress };
-  } catch (error) {
-    run.manifest.status = "failed";
-    run.manifest.error = error instanceof Error ? error.message : String(error);
-    await saveRun(run);
-    throw error;
   } finally {
     await rm(temporary, { force: true });
     await rm(temporaryArtifact, { force: true });
   }
-}
-
-async function fundPersona(run: Run, persona: Persona) {
-  await record(run, `Fund ${persona.name}`, async () => {
-    const funding = await persona.wallet.requestAirdrop(wait);
-    return { hash: funding.transactionHash, blockHeight: funding.blockHeight };
-  });
-  if ((await persona.wallet.getBalance()).rawBalance < CONTRACT_FUNDING * 3n)
-    throw new Error(
-      "Infrastructure deployer airdrop did not provide the required native-token reserve",
-    );
-}
-
-async function fundNativeReserve(run: Run, persona: Persona) {
-  // The native contract needs storage reserve for future token balance rows.
-  await record(run, "Fund native-token reserve", () =>
-    persona.wallet.executeAndWait(
-      {
-        invocation: ERC20.v0_1.transfer.invocation(
-          NATIVE_TOKEN_ADDRESS,
-          GAS_LIMIT,
-          {
-            receiver: NATIVE_TOKEN_ADDRESS,
-            amount: CONTRACT_FUNDING,
-          },
-        ),
-        gasLimit: GAS_LIMIT,
-      },
-      wait,
-    ),
+  console.log(
+    `Launchpad ${options.network} infrastructure ready\nApp environment: ${environmentPath}\nFactory: ${toBase58(factoryAddress)}\nToken code: ${toBase58(tokenHash)}\nRequired token funding: ${requiredTokenFunding}`,
   );
-}
-
-async function deployFactory(
-  run: Run,
-  persona: Persona,
-  deployment: ContractDeployment,
-  config: FactoryConfig,
-) {
-  await record(run, "Deploy and initialize token factory", () =>
-    persona.wallet.deployContractAndWait(
-      deployment,
-      {
-        gasLimit: GAS_LIMIT,
-        amount: CONTRACT_FUNDING,
-        initializer: StandardTokenFactory.v0_1.initialize.invocation(
-          deployment.address,
-          GAS_LIMIT,
-          { config },
-        ),
-      },
-      wait,
-    ),
+  console.warn(
+    `No tokens were created. First token creation can attach the code asset at ${artifactPath}.`,
   );
-}
-
-async function verifyFactory(
-  client: Client,
-  run: Run,
-  deployment: ContractDeployment,
-  expected: FactoryConfig,
-) {
-  const observed = (
-    await StandardTokenFactory.v0_1.config.view({
-      client,
-      address: deployment.address,
-      minStateBlockHeight: run.latestBlockHeight,
-    })
-  ).value;
-  // Compare with scenario inputs, independently of the deployment receipt.
-  if (
-    !bytesEqual(observed.token_code_hash, expected.token_code_hash) ||
-    observed.required_token_funding !== expected.required_token_funding ||
-    !bytesEqual(observed.native_token, expected.native_token) ||
-    observed.creation_fee !== 0n ||
-    observed.fee_recipient !== null
-  ) {
-    throw new Error("The deployed factory configuration could not be verified");
-  }
+  return { client, address: factoryAddress };
 }
 
 function renderEnvironment(input: {
