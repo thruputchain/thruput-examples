@@ -6,6 +6,8 @@ rustflags = [
     # `jal` (smaller code and one fewer executed instruction per relaxed
     # call). Output stays pure RV32IM.
     "-C", "target-feature=+unaligned-scalar-mem,+relax",
+    # Use the SDK runtime helpers for 128-bit division and remainder.
+    "-C", "llvm-args=-expand-div-rem-bits=128",
     "-C", "link-arg=-Tthruput-rv32.ld",
     "-C", "link-arg=-static",
     "-C", "link-arg=--no-dynamic-linker",
