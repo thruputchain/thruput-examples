@@ -1,0 +1,33 @@
+[package]
+name = "stream"
+version = "0.1.0"
+description = "Example payment streams, paid by the second, whose payees' schedules are Fenwick trees"
+edition = "2024"
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+[[bin]]
+name = "stream"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+[features]
+entrypoints = []
+default = ["dev"]
+dev = ["thruput-sdk/dev", "fenwick/dev"]
+
+[dependencies]
+thruput-sdk = { workspace = true }
+thruput-erc20-if = { workspace = true }
+fenwick = { path = "../fenwick" }
+
+[dev-dependencies]
+stream = { path = ".", features = ["dev"] }
+erc20 = { path = "../../erc20", features = ["dev"] }

@@ -901,6 +901,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fenwick"
+version = "0.1.0"
+dependencies = [
+ "fenwick",
+ "thruput-sdk",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3196,6 +3204,17 @@ dependencies = [
  "data-encoding",
  "heapless",
  "zeroize",
+]
+
+[[package]]
+name = "stream"
+version = "0.1.0"
+dependencies = [
+ "erc20",
+ "fenwick",
+ "stream",
+ "thruput-erc20-if",
+ "thruput-sdk",
 ]
 
 [[package]]

@@ -62,8 +62,8 @@ order, in three tiers:
   interfaces.
 - **Intermediate:** ERC20, Voting, Airdrop, and an oracle consumer.
 - **Advanced projects:** groups of crates that work together: Token factory,
-  Swap, Permit, Stellar account, Waitlist, and Speedex. Swap and Speedex include
-  benchmarks.
+  Swap, Permit, Stellar account, Waitlist, Stream, and Speedex. Swap and Speedex
+  include benchmarks.
 
 ## Applications
 

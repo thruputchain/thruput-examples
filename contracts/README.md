@@ -52,6 +52,7 @@ README gives its crates in reading order.
 | [Permit](permit/README.md) | Approve a token spend with an off-chain signature | |
 | [Stellar account](stellar-account/README.md) | Weighted Ed25519 and ML-DSA-65 signers and thresholds | |
 | [Waitlist](waitlist/README.md) | A fee steered by a backlog, shared by concurrent callers | |
+| [Stream](stream/README.md) | Payment streams paid by the second, kept in a Fenwick tree whose updates never conflict | |
 | [Speedex](speedex/README.md) | Multi-asset batch exchange and clearing (research) | Benchmarks |
 
 Swap and Speedex include benchmarks. They are in each project's `bench/` folder,
